@@ -1,7 +1,7 @@
 ﻿/*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
  *	"RememberCollider.cs"
  * 
@@ -12,71 +12,114 @@
 
 using UnityEngine;
 using System.Collections;
-using AC;
 
-public class RememberCollider : ConstantID
+namespace AC
 {
-	
-	public AC_OnOff startState = AC_OnOff.On;
-	
-	
-	public void Awake ()
+
+	/**
+	 * This script is attached to Colliders in the scene whose on/off state you wish to save.
+	 */
+	[AddComponentMenu("Adventure Creator/Save system/Remember Collider")]
+	#if !(UNITY_4_6 || UNITY_4_7 || UNITY_5_0)
+	[HelpURL("http://www.adventurecreator.org/scripting-guide/class_a_c_1_1_remember_collider.html")]
+	#endif
+	public class RememberCollider : Remember
 	{
-		SettingsManager settingsManager = AdvGame.GetReferences ().settingsManager;
+
+		/** Determines whether the Collider is on or off when the game begins */
+		public AC_OnOff startState = AC_OnOff.On;
+
+		private bool loadedData = false;
+
 		
-		if (settingsManager && GameIsPlaying () && GetComponent<Collider>())
+		private void Awake ()
 		{
-			if (startState == AC_OnOff.On)
+			if (loadedData) return;
+
+			if (KickStarter.settingsManager && GameIsPlaying ())
 			{
-				GetComponent<Collider>().enabled = true;
-			}
-			else
-			{
-				GetComponent<Collider>().enabled = false;
+				bool isOn = (startState == AC_OnOff.On) ? true : false;
+
+				if (GetComponent <Collider>())
+				{
+					GetComponent <Collider>().enabled = isOn;
+				}
+
+				else if (GetComponent <Collider2D>())
+				{
+					GetComponent <Collider2D>().enabled = isOn;
+				}
 			}
 		}
+		
+
+		/**
+		 * <summary>Serialises appropriate GameObject values into a string.</summary>
+		 * <returns>The data, serialised as a string</returns>
+		 */
+		public override string SaveData ()
+		{
+			ColliderData colliderData = new ColliderData ();
+
+			colliderData.objectID = constantID;
+			colliderData.isOn = false;
+
+			if (GetComponent <Collider>())
+			{
+				colliderData.isOn = GetComponent <Collider>().enabled;
+			}
+			else if (GetComponent <Collider2D>())
+			{
+				colliderData.isOn = GetComponent <Collider2D>().enabled;
+			}
+
+			return Serializer.SaveScriptData <ColliderData> (colliderData);
+		}
+		
+
+		/**
+		 * <summary>Deserialises a string of data, and restores the GameObject to its previous state.</summary>
+		 * <param name = "stringData">The data, serialised as a string</param>
+		 */
+		public override void LoadData (string stringData)
+		{
+			ColliderData data = Serializer.LoadScriptData <ColliderData> (stringData);
+			if (data == null)
+			{
+				loadedData = false;
+				return;
+			}
+
+			if (GetComponent <Collider>())
+			{
+				GetComponent <Collider>().enabled = data.isOn;
+			}
+			else if (GetComponent <Collider2D>())
+			{
+				GetComponent <Collider2D>().enabled = data.isOn;
+			}
+
+			loadedData = true;
+		}
+
 	}
-	
-	
-	public ColliderData SaveData ()
+
+
+	/**
+	 * A data container used by the RememberCollider script.
+	 */
+	[System.Serializable]
+	public class ColliderData : RememberData
 	{
-		ColliderData colliderData = new ColliderData ();
 
-		colliderData.objectID = constantID;
-		colliderData.isOn = false;
+		/** True if the Collider is enabled */
+		public bool isOn;
 
-		if (GetComponent<Collider>())
-		{
-			colliderData.isOn = GetComponent<Collider>().enabled;
-		}
+		/**
+		 * The default Constructor.
+		 */
+		public ColliderData () { }
 
-		return (colliderData);
-	}
-	
-	
-	public void LoadData (ColliderData data)
-	{
-		if (GetComponent<Collider>())
-		{
-			if (data.isOn)
-			{
-				GetComponent<Collider>().enabled = true;
-			}
-			else
-			{
-				GetComponent<Collider>().enabled = false;
-			}
-		}
 	}
 
-}
-
-
-[System.Serializable]
-public class ColliderData
-{
-	public int objectID;
-	public bool isOn;
-
-	public ColliderData () { }
 }

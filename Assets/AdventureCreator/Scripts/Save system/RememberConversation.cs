@@ -1,7 +1,7 @@
 /*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
  *	"RememberConversation.cs"
  * 
@@ -14,42 +14,97 @@ using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 
-public class RememberConversation : ConstantID
+namespace AC
 {
 
-	public ConversationData SaveData ()
+	/**
+	 * Attach this script to Conversation objects in the scene with DialogOption states you wish to save.
+	 */
+	[AddComponentMenu("Adventure Creator/Save system/Remember Conversation")]
+	#if !(UNITY_4_6 || UNITY_4_7 || UNITY_5_0)
+	[HelpURL("http://www.adventurecreator.org/scripting-guide/class_a_c_1_1_remember_conversation.html")]
+	#endif
+	public class RememberConversation : Remember
 	{
-		ConversationData conversationData = new ConversationData();
-		conversationData.objectID = constantID;
 
-		if (GetComponent <Conversation>())
+		/**
+		 * <summary>Serialises appropriate GameObject values into a string.</summary>
+		 * <returns>The data, serialised as a string</returns>
+		 */
+		public override string SaveData ()
 		{
-			conversationData.optionStates = GetComponent <Conversation>().GetOptionStates ();
-			conversationData.optionLocks = GetComponent <Conversation>().GetOptionLocks ();
+			ConversationData conversationData = new ConversationData();
+			conversationData.objectID = constantID;
+
+			if (GetComponent <Conversation>())
+			{
+				Conversation conversation = GetComponent <Conversation>();
+
+				bool[] optionStates = conversation.GetOptionStates ();
+				conversationData._optionStates = ArrayToString <bool> (optionStates);
+
+				bool[] optionLocks = conversation.GetOptionLocks ();
+				conversationData._optionLocks = ArrayToString <bool> (optionLocks);
+
+				bool[] optionChosens = conversation.GetOptionChosens ();
+				conversationData._optionChosens = ArrayToString <bool> (optionChosens);
+
+				conversationData.lastOption = conversation.lastOption;
+			}
+
+			return Serializer.SaveScriptData <ConversationData> (conversationData);
 		}
 
-		return (conversationData);
+
+		/**
+		 * <summary>Deserialises a string of data, and restores the GameObject to its previous state.</summary>
+		 * <param name = "stringData">The data, serialised as a string</param>
+		 */
+		public override void LoadData (string stringData)
+		{
+			ConversationData data = Serializer.LoadScriptData <ConversationData> (stringData);
+			if (data == null) return;
+
+			if (GetComponent <Conversation>())
+			{
+				Conversation conversation = GetComponent <Conversation>();
+
+				bool[] optionStates = StringToBoolArray (data._optionStates);
+				conversation.SetOptionStates (optionStates);
+
+				bool[] optionLocks = StringToBoolArray (data._optionLocks);
+				conversation.SetOptionLocks (optionLocks);
+
+				bool[] optionChosens = StringToBoolArray (data._optionChosens);
+				conversation.SetOptionChosens (optionChosens);
+
+				conversation.lastOption = data.lastOption;
+			}
+		}
+
 	}
 
 
-	public void LoadData (ConversationData data)
+	/**
+	 * A data container used by the RememberConversation script.
+	 */
+	[System.Serializable]
+	public class ConversationData : RememberData
 	{
-		if (GetComponent <Conversation>())
-		{
-			GetComponent <Conversation>().SetOptionStates (data.optionStates);
-			GetComponent <Conversation>().SetOptionLocks (data.optionLocks);
-		}
+
+		/** The enabled state of each DialogOption */
+		public string _optionStates;
+		/** The locked state of each DialogOption */
+		public string _optionLocks;
+		/** The 'already chosen' state of each DialogOption */
+		public string _optionChosens;
+		/** The index of the last-chosen option */
+		public int lastOption;
+
+		/**
+		 * The default Constructor.
+		 */
+		public ConversationData () { }
 	}
 
-}
-
-
-[System.Serializable]
-public class ConversationData
-{
-	public int objectID;
-	public List<bool> optionStates;
-	public List<bool> optionLocks;
-	
-	public ConversationData () { }
 }

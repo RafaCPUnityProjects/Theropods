@@ -1,161 +1,350 @@
 /*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
- *	"ActionInventorySet.cs"
+ *	"ActionVarSet.cs"
  * 
- *	This action is used to set the value of integer and boolean Variables, defined in the Variables Manager.
+ *	This action is used to set the value of Global and Local Variables
  * 
  */
 
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
-using AC;
 
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
 
-[System.Serializable]
-public class ActionVarSet : Action
+namespace AC
 {
-	
-	public SetVarMethod setVarMethod;
-	public SetVarMethodString setVarMethodString = SetVarMethodString.EnteredHere;
-	public SetVarMethodIntBool setVarMethodIntBool = SetVarMethodIntBool.EnteredHere;
-	
-	public int variableID;
-	public int variableNumber;
-	
-	public int intValue;
-	public BoolValue boolValue;
-	public string stringValue;
 
-	public string menuName;
-	public string elementName;
-
-	public Animator animator;
-	public string parameterName;
-
-	private VariablesManager variablesManager;
-
-	#if UNITY_EDITOR
-	private static GUILayoutOption
-		intWidth = GUILayout.MaxWidth (40);
-	#endif
-	
-	
-	public ActionVarSet ()
+	[System.Serializable]
+	public class ActionVarSet : Action
 	{
-		this.isDisplayed = true;
-		title = "Variable: Set";
-	}
-
-	
-	override public float Run ()
-	{
-		RuntimeVariables runtimeVariables = GameObject.FindWithTag(Tags.persistentEngine).GetComponent <RuntimeVariables>();
 		
-		if (runtimeVariables)
+		public SetVarMethod setVarMethod;
+		public SetVarMethodString setVarMethodString = SetVarMethodString.EnteredHere;
+		public SetVarMethodIntBool setVarMethodIntBool = SetVarMethodIntBool.EnteredHere;
+
+		public int parameterID = -1;
+		public int variableID;
+		public int variableNumber;
+
+		public int setParameterID = -1;
+		public int slotNumber = 0;
+		public int slotNumberParameterID = -1;
+		
+		public int intValue;
+		public float floatValue;
+		public BoolValue boolValue;
+		public string stringValue;
+		public string formula;
+
+		public VariableLocation location;
+
+		public string menuName;
+		public string elementName;
+
+		public Animator animator;
+		public string parameterName;
+
+			
+		public ActionVarSet ()
 		{
-			if (variableID != -1 && runtimeVariables.localVars.Count > 0)
+			this.isDisplayed = true;
+			category = ActionCategory.Variable;
+			title = "Set";
+			description = "Sets the value of both Global and Local Variables, as declared in the Variables Manager. Integers can be set to absolute, incremented or assigned a random value. Strings can also be set to the value of a MenuInput element, while Integers, Booleans and Floats can also be set to the value of a Mecanim parameter. When setting Integers and Floats, you can also opt to type in a forumla (e.g. 2 + 3 *4), which can also include tokens of the form [var:ID] to denote the value of a Variable, where ID is the unique number given to a Variable in the Variables Manager.";
+		}
+
+
+		override public void AssignValues (List<ActionParameter> parameters)
+		{
+			variableID = AssignVariableID (parameters, parameterID, variableID);
+
+			intValue = AssignInteger (parameters, setParameterID, intValue);
+			boolValue = AssignBoolean (parameters, setParameterID, boolValue);
+			floatValue = AssignFloat (parameters, setParameterID, floatValue);
+			stringValue = AssignString (parameters, setParameterID, stringValue);
+			formula = AssignString (parameters, setParameterID, formula);
+			slotNumber = AssignInteger (parameters, slotNumberParameterID, slotNumber);
+		}
+
+
+		override public float Run ()
+		{
+			if (variableID != -1)
 			{
-				if (runtimeVariables.GetVarType (variableID) == VariableType.Integer)
+				if (location == VariableLocation.Local && !isAssetFile)
 				{
-					int _value = 0;
-
-					if (setVarMethodIntBool == SetVarMethodIntBool.EnteredHere)
-					{
-						_value = intValue;
-					}
-					else if (setVarMethodIntBool == SetVarMethodIntBool.SetAsMecanimParameter)
-					{
-						if (animator && parameterName != "")
-						{
-							_value = animator.GetInteger (parameterName);
-						}	
-					}
-
-					runtimeVariables.SetValue (variableID, _value, setVarMethod);
+					SetVariable (LocalVariables.GetVariable (variableID), VariableLocation.Local, false);
 				}
-				else if (runtimeVariables.GetVarType (variableID) == VariableType.Boolean)
+				else
 				{
-					int _value = 0;
-
-					if (setVarMethodIntBool == SetVarMethodIntBool.EnteredHere)
-					{
-						_value = (int) boolValue;
-					}
-					else if (setVarMethodIntBool == SetVarMethodIntBool.SetAsMecanimParameter)
-					{
-						if (animator && parameterName != "")
-						{
-							if (animator.GetBool (parameterName))
-							{
-								_value = 1;
-							}
-						}
-					}
-
-					runtimeVariables.SetValue (variableID, _value, SetVarMethod.SetValue);
+					SetVariable (GlobalVariables.GetVariable (variableID), VariableLocation.Global, false);
 				}
-				else if (runtimeVariables.GetVarType (variableID) == VariableType.String)
+			}
+
+			return 0f;
+		}
+
+
+		override public void Skip ()
+		{
+			if (variableID != -1)
+			{
+				if (location == VariableLocation.Local && !isAssetFile)
 				{
-					string _value = "";
-
-					if (setVarMethodString == SetVarMethodString.EnteredHere)
-					{
-						_value = stringValue;
-					}
-					else if (setVarMethodString == SetVarMethodString.SetAsMenuInputLabel)
-					{
-						if (PlayerMenus.GetElementWithName (menuName, elementName) != null)
-						{
-							MenuInput menuInput = (MenuInput) PlayerMenus.GetElementWithName (menuName, elementName);
-							_value = menuInput.label;
-						}
-						else
-						{
-							Debug.LogWarning ("Could not find MenuInput '" + elementName + "' in Menu '" + menuName + "'");
-						}
-					}
-
-					runtimeVariables.SetValue (variableID, _value);
+					SetVariable (LocalVariables.GetVariable (variableID), VariableLocation.Local, true);
 				}
-
-				if (GameObject.FindWithTag (Tags.gameEngine) && GameObject.FindWithTag (Tags.gameEngine).GetComponent <SceneSettings>())
+				else
 				{
-					GameObject.FindWithTag (Tags.gameEngine).GetComponent <SceneSettings>().VarChanged ();
+					SetVariable (GlobalVariables.GetVariable (variableID), VariableLocation.Global, true);
 				}
 			}
 		}
+
 		
-		return 0f;
-	}
-	
-	
-	#if UNITY_EDITOR
-	
-	override public void ShowGUI ()
-	{
-		if (!variablesManager)
+		private void SetVariable (GVar var, VariableLocation location, bool doSkip)
 		{
-			variablesManager = AdvGame.GetReferences ().variablesManager;
+			if (var == null)
+			{
+				return;
+			}
+
+			if (location == VariableLocation.Global)
+			{
+				var.Download ();
+			}
+
+			if (var.type == VariableType.Integer)
+			{
+				int _value = 0;
+
+				if (setVarMethodIntBool == SetVarMethodIntBool.EnteredHere)
+				{
+					if (setVarMethod == SetVarMethod.Formula)
+					{
+						_value = (int) AdvGame.CalculateFormula (AdvGame.ConvertTokens (formula));
+					}
+					else
+					{
+						_value = intValue;
+					}
+				}
+				else if (setVarMethodIntBool == SetVarMethodIntBool.SetAsMecanimParameter)
+				{
+					if (animator && parameterName != "")
+					{
+						_value = animator.GetInteger (parameterName);
+						setVarMethod = SetVarMethod.SetValue;
+					}	
+				}
+
+				if (setVarMethod == SetVarMethod.IncreaseByValue && doSkip)
+				{
+					var.RestoreBackupValue ();
+				}
+
+				var.SetValue (_value, setVarMethod);
+
+				if (doSkip)
+				{
+					var.BackupValue ();
+				}
+			}
+			if (var.type == VariableType.Float)
+			{
+				float _value = 0;
+				
+				if (setVarMethodIntBool == SetVarMethodIntBool.EnteredHere)
+				{
+					if (setVarMethod == SetVarMethod.Formula)
+					{
+						_value = (float) AdvGame.CalculateFormula (AdvGame.ConvertTokens (formula));
+					}
+					else
+					{
+						_value = floatValue;
+					}
+				}
+				else if (setVarMethodIntBool == SetVarMethodIntBool.SetAsMecanimParameter)
+				{
+					if (animator && parameterName != "")
+					{
+						_value = animator.GetFloat (parameterName);
+						setVarMethod = SetVarMethod.SetValue;
+					}	
+				}
+
+				if (setVarMethod == SetVarMethod.IncreaseByValue && doSkip)
+				{
+					var.RestoreBackupValue ();
+				}
+				
+				var.SetFloatValue (_value, setVarMethod);
+				
+				if (doSkip)
+				{
+					var.BackupValue ();
+				}
+			}
+			else if (var.type == VariableType.Boolean)
+			{
+				int _value = 0;
+
+				if (setVarMethodIntBool == SetVarMethodIntBool.EnteredHere)
+				{
+					_value = (int) boolValue;
+				}
+				else if (setVarMethodIntBool == SetVarMethodIntBool.SetAsMecanimParameter)
+				{
+					if (animator && parameterName != "")
+					{
+						if (animator.GetBool (parameterName))
+						{
+							_value = 1;
+						}
+					}
+				}
+
+				var.SetValue (_value, SetVarMethod.SetValue);
+			}
+			else if (var.type == VariableType.PopUp)
+			{
+			//	var.SetValue (intValue);
+
+				int _value = 0;
+				
+				if (setVarMethod == SetVarMethod.Formula)
+				{
+					_value = (int) AdvGame.CalculateFormula (AdvGame.ConvertTokens (formula));
+				}
+				else if (setVarMethod == SetVarMethod.SetAsRandom)
+				{
+					if (var.popUps != null)
+					{
+						_value = var.popUps.Length;
+					}
+				}
+				else
+				{
+					_value = intValue;
+				}
+
+				if (setVarMethod == SetVarMethod.IncreaseByValue && doSkip)
+				{
+					var.RestoreBackupValue ();
+				}
+				
+				var.SetValue (_value, setVarMethod);
+				
+				if (doSkip)
+				{
+					var.BackupValue ();
+				}
+			}
+			else if (var.type == VariableType.String)
+			{
+				string _value = "";
+
+				if (setVarMethodString == SetVarMethodString.EnteredHere)
+				{
+					_value = AdvGame.ConvertTokens (stringValue);
+				}
+				else if (setVarMethodString == SetVarMethodString.SetAsMenuElementText)
+				{
+					MenuElement menuElement = PlayerMenus.GetElementWithName (menuName, elementName);
+					if (menuElement != null)
+					{
+						if (menuElement is MenuInput)
+						{
+							MenuInput menuInput = (MenuInput) menuElement;
+							_value = menuInput.GetContents ();
+							
+							if ((Options.GetLanguageName () == "Arabic" || Options.GetLanguageName () == "Hebrew") && _value.Length > 0)
+							{
+								// Invert
+								char[] charArray = _value.ToCharArray ();
+								_value = "";
+								for (int i = charArray.Length-1; i >= 0; i --)
+								{
+									_value += charArray[i];
+								}
+							}
+						}
+						else
+						{
+							PlayerMenus.GetMenuWithName (menuName).Recalculate ();
+							menuElement.PreDisplay (slotNumber, Options.GetLanguage (), false);
+							_value = menuElement.GetLabel (slotNumber, Options.GetLanguage ());
+						}
+					}
+					else
+					{
+						ACDebug.LogWarning ("Could not find MenuInput '" + elementName + "' in Menu '" + menuName + "'");
+					}
+				}
+
+				var.SetStringValue (_value);
+			}
+
+			if (location == VariableLocation.Global)
+			{
+				var.Upload ();
+			}
+
+			KickStarter.actionListManager.VariableChanged ();
 		}
 		
-		if (variablesManager)
+		
+		#if UNITY_EDITOR
+		
+		override public void ShowGUI (List<ActionParameter> parameters)
+		{
+			if (isAssetFile)
+			{
+				location = VariableLocation.Global;
+			}
+			else
+			{
+				location = (VariableLocation) EditorGUILayout.EnumPopup ("Source:", location);
+			}
+			
+			if (location == VariableLocation.Global)
+			{
+				if (AdvGame.GetReferences ().variablesManager)
+				{
+					ShowVarGUI (AdvGame.GetReferences ().variablesManager.vars, parameters, ParameterType.GlobalVariable);
+				}
+			}
+			
+			else if (location == VariableLocation.Local)
+			{
+				if (KickStarter.localVariables)
+				{
+					ShowVarGUI (KickStarter.localVariables.localVars, parameters, ParameterType.LocalVariable);
+				}
+			}
+		}
+
+
+		private void ShowVarGUI (List<GVar> vars, List<ActionParameter> parameters, ParameterType parameterType)
 		{
 			// Create a string List of the field's names (for the PopUp box)
 			List<string> labelList = new List<string>();
 			
 			int i = 0;
-			variableNumber = -1;
-			
-			if (variablesManager.vars.Count > 0)
+			if (parameterID == -1)
 			{
-				foreach (GVar _var in variablesManager.vars)
+				variableNumber = -1;
+			}
+			
+			if (vars.Count > 0)
+			{
+				foreach (GVar _var in vars)
 				{
 					labelList.Add (_var.label);
 					
@@ -168,135 +357,376 @@ public class ActionVarSet : Action
 					i ++;
 				}
 				
-				if (variableNumber == -1)
+				if (variableNumber == -1 && (parameters == null || parameters.Count == 0 || parameterID == -1))
 				{
 					// Wasn't found (variable was deleted?), so revert to zero
-					Debug.LogWarning ("Previously chosen variable no longer exists!");
+					ACDebug.LogWarning ("Previously chosen variable no longer exists!");
 					variableNumber = 0;
 					variableID = 0;
 				}
-		
-				
-				EditorGUILayout.BeginHorizontal();
-				
-				variableNumber = EditorGUILayout.Popup (variableNumber, labelList.ToArray(), GUILayout.Width (150));
-				variableID = variablesManager.vars[variableNumber].id;
-				
-				if (variablesManager.vars[variableNumber].type == VariableType.Boolean)
-				{
-					EditorGUILayout.LabelField ("=", intWidth);
 
+				parameterID = Action.ChooseParameterGUI ("Variable:", parameters, parameterID, parameterType);
+				if (parameterID >= 0)
+				{
+					//variableNumber = 0;
+					variableNumber = Mathf.Min (variableNumber, vars.Count-1);
+					variableID = -1;
+				}
+				else
+				{
+					variableNumber = EditorGUILayout.Popup ("Variable:", variableNumber, labelList.ToArray());
+					variableID = vars [variableNumber].id;
+				}
+
+				string label = "Statement: ";
+
+				if (vars [variableNumber].type == VariableType.Boolean)
+				{
+					setVarMethodIntBool = (SetVarMethodIntBool) EditorGUILayout.EnumPopup ("New value is:", setVarMethodIntBool);
+
+					label += "=";
 					if (setVarMethodIntBool == SetVarMethodIntBool.EnteredHere)
 					{
-						boolValue = (BoolValue) EditorGUILayout.EnumPopup (boolValue);
+						setParameterID = Action.ChooseParameterGUI (label, parameters, setParameterID, ParameterType.Boolean);
+						if (setParameterID < 0)
+						{
+							boolValue = (BoolValue) EditorGUILayout.EnumPopup (label, boolValue);
+						}
 					}
-
-					EditorGUILayout.EndHorizontal();
-
-					if (setVarMethodIntBool == SetVarMethodIntBool.SetAsMecanimParameter)
+					else if (setVarMethodIntBool == SetVarMethodIntBool.SetAsMecanimParameter)
 					{
 						ShowMecanimGUI ();
 					}
-
-					setVarMethodIntBool = (SetVarMethodIntBool) EditorGUILayout.EnumPopup ("Source:", setVarMethodIntBool);
 				}
-				else if (variablesManager.vars[variableNumber].type == VariableType.Integer)
+				if (vars [variableNumber].type == VariableType.PopUp)
+				{
+					/*
+					label += "=";
+
+					setParameterID = Action.ChooseParameterGUI (label, parameters, setParameterID, ParameterType.Integer);
+					if (setParameterID < 0)
+					{
+						intValue = EditorGUILayout.Popup (label, intValue, vars[variableNumber].popUps);
+					}*/
+
+					setVarMethod = (SetVarMethod) EditorGUILayout.EnumPopup ("Method:", setVarMethod);
+					
+					if (setVarMethod == SetVarMethod.Formula)
+					{
+						label += "=";
+						
+						setParameterID = Action.ChooseParameterGUI (label, parameters, setParameterID, ParameterType.String);
+						if (setParameterID < 0)
+						{
+							formula = EditorGUILayout.TextField (label, formula);
+						}
+						
+						#if UNITY_WP8
+						EditorGUILayout.HelpBox ("This feature is not available for Windows Phone 8.", MessageType.Warning);
+						#endif
+					}
+					else if (setVarMethod == SetVarMethod.IncreaseByValue || setVarMethod == SetVarMethod.SetValue)
+					{
+						if (setVarMethod == SetVarMethod.IncreaseByValue)
+						{
+							label += "+=";
+						}
+						else if (setVarMethod == SetVarMethod.SetValue)
+						{
+							label += "=";
+						}
+
+						setParameterID = Action.ChooseParameterGUI (label, parameters, setParameterID, ParameterType.Integer);
+						if (setParameterID < 0)
+						{
+							if (setVarMethod == SetVarMethod.SetValue)
+							{
+								intValue = EditorGUILayout.Popup (label, intValue, vars[variableNumber].popUps);
+							}
+							else
+							{
+								intValue = EditorGUILayout.IntField (label, intValue);
+							}
+							
+							if (setVarMethod == SetVarMethod.SetAsRandom && intValue < 0)
+							{
+								intValue = 0;
+							}
+						}
+					}
+
+				}
+				else if (vars [variableNumber].type == VariableType.Integer)
+				{
+					setVarMethodIntBool = (SetVarMethodIntBool) EditorGUILayout.EnumPopup ("New value is:", setVarMethodIntBool);
+
+					if (setVarMethodIntBool == SetVarMethodIntBool.EnteredHere)
+					{
+						setVarMethod = (SetVarMethod) EditorGUILayout.EnumPopup ("Method:", setVarMethod);
+
+						if (setVarMethod == SetVarMethod.Formula)
+						{
+							label += "=";
+							
+							setParameterID = Action.ChooseParameterGUI (label, parameters, setParameterID, ParameterType.String);
+							if (setParameterID < 0)
+							{
+								formula = EditorGUILayout.TextField (label, formula);
+							}
+							
+							#if UNITY_WP8
+							EditorGUILayout.HelpBox ("This feature is not available for Windows Phone 8.", MessageType.Warning);
+							#endif
+						}
+						else
+						{
+							if (setVarMethod == SetVarMethod.IncreaseByValue)
+							{
+								label += "+=";
+							}
+							else if (setVarMethod == SetVarMethod.SetValue)
+							{
+								label += "=";
+							}
+							else if (setVarMethod == SetVarMethod.SetAsRandom)
+							{
+								label += ("= 0 to");
+							}
+
+							setParameterID = Action.ChooseParameterGUI (label, parameters, setParameterID, ParameterType.Integer);
+							if (setParameterID < 0)
+							{
+								intValue = EditorGUILayout.IntField (label, intValue);
+
+								if (setVarMethod == SetVarMethod.SetAsRandom && intValue < 0)
+								{
+									intValue = 0;
+								}
+							}
+						}
+					}
+					else if (setVarMethodIntBool == SetVarMethodIntBool.SetAsMecanimParameter)
+					{
+						ShowMecanimGUI ();
+					}
+				}
+				else if (vars [variableNumber].type == VariableType.Float)
+				{
+					setVarMethodIntBool = (SetVarMethodIntBool) EditorGUILayout.EnumPopup ("New value is:", setVarMethodIntBool);
+
+					if (setVarMethodIntBool == SetVarMethodIntBool.EnteredHere)
+					{
+						setVarMethod = (SetVarMethod) EditorGUILayout.EnumPopup ("Method:", setVarMethod);
+
+						if (setVarMethod == SetVarMethod.Formula)
+						{
+							label += "=";
+
+							setParameterID = Action.ChooseParameterGUI (label, parameters, setParameterID, ParameterType.String);
+							if (setParameterID < 0)
+							{
+								formula = EditorGUILayout.TextField (label, formula);
+							}
+							
+							#if UNITY_WP8
+							EditorGUILayout.HelpBox ("This feature is not available for Windows Phone 8.", MessageType.Warning);
+							#endif
+						}
+						else
+						{
+							if (setVarMethod == SetVarMethod.IncreaseByValue)
+							{
+								label += "+=";
+							}
+							else if (setVarMethod == SetVarMethod.SetValue)
+							{
+								label += "=";
+							}
+							else if (setVarMethod == SetVarMethod.SetAsRandom)
+							{
+								label += "= 0 to";
+							}
+
+							setParameterID = Action.ChooseParameterGUI (label, parameters, setParameterID, ParameterType.Float);
+							if (setParameterID < 0)
+							{
+								floatValue = EditorGUILayout.FloatField (label, floatValue);
+								
+								if (setVarMethod == SetVarMethod.SetAsRandom && floatValue < 0f)
+								{
+									floatValue = 0f;
+								}
+							}
+						}
+					}
+					else if (setVarMethodIntBool == SetVarMethodIntBool.SetAsMecanimParameter)
+					{
+						ShowMecanimGUI ();
+					}
+				}
+				else if (vars [variableNumber].type == VariableType.String)
+				{
+					setVarMethodString = (SetVarMethodString) EditorGUILayout.EnumPopup ("New value is:", setVarMethodString);
+
+					label += "=";
+					if (setVarMethodString == SetVarMethodString.EnteredHere)
+					{
+						setParameterID = Action.ChooseParameterGUI (label, parameters, setParameterID, ParameterType.String);
+						if (setParameterID < 0)
+						{
+							stringValue = EditorGUILayout.TextField (label, stringValue);
+						}
+					}
+					else if (setVarMethodString == SetVarMethodString.SetAsMenuElementText)
+					{
+						menuName = EditorGUILayout.TextField ("Menu name:", menuName);
+						elementName = EditorGUILayout.TextField ("Element name:", elementName);
+
+						slotNumberParameterID = Action.ChooseParameterGUI ("Slot # (optional):", parameters, slotNumberParameterID, ParameterType.Integer);
+						if (slotNumberParameterID < 0)
+						{
+							slotNumber = EditorGUILayout.IntField ("Slot # (optional):", slotNumber);
+						}
+					}
+				}
+
+				AfterRunningOption ();
+			}
+			else
+			{
+				EditorGUILayout.HelpBox ("No variables exist!", MessageType.Info);
+				variableID = -1;
+				variableNumber = -1;
+			}
+		}
+
+
+		private void ShowMecanimGUI ()
+		{
+			animator = (Animator) EditorGUILayout.ObjectField ("Animator:", animator, typeof (Animator), true);
+			parameterName = EditorGUILayout.TextField ("Parameter name:", parameterName);
+		}
+
+
+		override public string SetLabel ()
+		{
+			if (location == VariableLocation.Local && !isAssetFile)
+			{
+				if (KickStarter.localVariables)
+				{
+					return GetLabelString (KickStarter.localVariables.localVars);
+				}
+			}
+			else
+			{
+				if (AdvGame.GetReferences ().variablesManager)
+				{
+					return GetLabelString (AdvGame.GetReferences ().variablesManager.vars);
+				}
+			}
+			
+			return "";
+		}
+
+
+		private string GetLabelString (List<GVar> vars)
+		{
+			string labelAdd = "";
+
+			if (vars.Count > 0 && variableNumber > -1 && vars.Count > variableNumber)
+			{
+				labelAdd = " (" + vars [variableNumber].label;
+
+				if (vars[variableNumber].type == VariableType.Integer)
 				{
 					if (setVarMethodIntBool == SetVarMethodIntBool.EnteredHere)
 					{
 						if (setVarMethod == SetVarMethod.IncreaseByValue)
 						{
-							EditorGUILayout.LabelField ("+=", intWidth);
+							labelAdd += " += " + intValue;
 						}
 						else if (setVarMethod == SetVarMethod.SetValue)
 						{
-							EditorGUILayout.LabelField ("=", intWidth);
+							labelAdd += " = " + intValue;
 						}
 						else if (setVarMethod == SetVarMethod.SetAsRandom)
 						{
-							EditorGUILayout.LabelField ("= 0 to", intWidth);
+							labelAdd += " = 0 to " + intValue;
 						}
-
-						intValue = EditorGUILayout.IntField (intValue);
+						else if (setVarMethod == SetVarMethod.Formula)
+						{
+							labelAdd += " = " + formula;
+						}
 					}
-					else if (setVarMethodIntBool == SetVarMethodIntBool.SetAsMecanimParameter)
+					else
 					{
-						EditorGUILayout.LabelField ("=", intWidth);
+						labelAdd += " = " + parameterName;
 					}
-						
-					EditorGUILayout.EndHorizontal();
-
+				}
+				else if (vars[variableNumber].type == VariableType.Boolean)
+				{
 					if (setVarMethodIntBool == SetVarMethodIntBool.EnteredHere)
 					{
-						setVarMethod = (SetVarMethod) EditorGUILayout.EnumPopup ("Method:", setVarMethod);
-						
-						if (setVarMethod == SetVarMethod.SetAsRandom && intValue < 0)
+						labelAdd += " = " + boolValue;
+					}
+					else
+					{
+						labelAdd += " = " + parameterName;
+					}
+				}
+				else if (vars[variableNumber].type == VariableType.PopUp)
+				{
+					if (intValue >= 0 && intValue < vars[variableNumber].popUps.Length)
+					{
+						labelAdd += " = " + vars[variableNumber].popUps[intValue];
+					}
+				}
+				else if (vars[variableNumber].type == VariableType.Float)
+				{
+					if (setVarMethodIntBool == SetVarMethodIntBool.EnteredHere)
+					{
+						if (setVarMethod == SetVarMethod.IncreaseByValue)
 						{
-							intValue = 0;
+							labelAdd += " += " + floatValue;
+						}
+						else if (setVarMethod == SetVarMethod.SetValue)
+						{
+							labelAdd += " = " + floatValue;
+						}
+						else if (setVarMethod == SetVarMethod.SetAsRandom)
+						{
+							labelAdd += " = 0 to " + floatValue;
+						}
+						else if (setVarMethod == SetVarMethod.Formula)
+						{
+							labelAdd += " = " + formula;
 						}
 					}
-					else if (setVarMethodIntBool == SetVarMethodIntBool.SetAsMecanimParameter)
+					else
 					{
-						ShowMecanimGUI ();
+						labelAdd += " = " + parameterName;
 					}
-
-					setVarMethodIntBool = (SetVarMethodIntBool) EditorGUILayout.EnumPopup ("Source:", setVarMethodIntBool);
 				}
-				else if (variablesManager.vars[variableNumber].type == VariableType.String)
+				else if (vars[variableNumber].type == VariableType.String)
 				{
-					EditorGUILayout.LabelField ("=", intWidth);
 					if (setVarMethodString == SetVarMethodString.EnteredHere)
 					{
-						stringValue = EditorGUILayout.TextField (stringValue);
+						labelAdd += " = " + stringValue;
 					}
-					EditorGUILayout.EndHorizontal();
-
-					if (setVarMethodString == SetVarMethodString.SetAsMenuInputLabel)
+					else
 					{
-						menuName = EditorGUILayout.TextField ("Menu name:", menuName);
-						elementName = EditorGUILayout.TextField ("Input element name:", elementName);
+						labelAdd += " = " + elementName;
 					}
-
-					setVarMethodString = (SetVarMethodString) EditorGUILayout.EnumPopup ("Source:", setVarMethodString);
 				}
-				
-				AfterRunningOption ();
+
+				labelAdd += ")";
 			}
-			else
-			{
-				EditorGUILayout.LabelField ("No global variables exist!");
-				variableID = -1;
-				variableNumber = -1;
-			}
+
+			return labelAdd;
 		}
+
+		#endif
+
 	}
-
-
-	private void ShowMecanimGUI ()
-	{
-		animator = (Animator) EditorGUILayout.ObjectField ("Animator:", animator, typeof (Animator), true);
-		parameterName = EditorGUILayout.TextField ("Parameter name:", parameterName);
-	}
-
-
-	override public string SetLabel ()
-	{
-		string labelAdd = "";
-		
-		if (variablesManager)
-		{
-			if (variablesManager.vars.Count > 0)
-			{
-				if (variableNumber > -1 && variablesManager.vars.Count > variableNumber)
-				{
-					labelAdd = " (" + variablesManager.vars [variableNumber].label + ")";
-				}
-			}
-		}
-		
-		return labelAdd;
-	}
-
-	#endif
 
 }

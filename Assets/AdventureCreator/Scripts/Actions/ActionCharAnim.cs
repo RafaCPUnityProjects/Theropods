@@ -1,7 +1,7 @@
 /*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
  *	"ActionCharAnim.cs"
  * 
@@ -11,144 +11,215 @@
 
 using UnityEngine;
 using System.Collections;
-using AC;
+using System.Collections.Generic;
 
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
 
-[System.Serializable]
-public class ActionCharAnim : Action
+namespace AC
 {
 
-	public bool isPlayer;
-	public Char animChar;
-	public AnimationClip clip;
-	public string clip2D;
-
-	public enum AnimMethodChar { PlayCustom, StopCustom, ResetToIdle, SetStandard };
-	public AnimMethodChar method;
-	
-	public AnimationBlendMode blendMode;
-	public AnimLayer layer = AnimLayer.Base;
-	public AnimStandard standard;
-	public bool includeDirection = false;
-
-	public int layerInt;
-	public bool idleAfter = true;
-	public bool idleAfterCustom = false;
-
-	public AnimPlayMode playMode;
-	public AnimPlayModeBase playModeBase = AnimPlayModeBase.PlayOnceAndClamp;
-
-	public float fadeTime = 0f;
-
-	public bool changeSpeed = false;
-	public float newSpeed = 0f;
-
-	public AnimMethodCharMecanim methodMecanim;
-	public MecanimCharParameter mecanimCharParameter;
-	public MecanimParameterType mecanimParameterType;
-	public string parameterName;
-	public float parameterValue;
-
-	
-	public ActionCharAnim ()
+	[System.Serializable]
+	public class ActionCharAnim : Action
 	{
-		this.isDisplayed = true;
-		title = "Character: Animate";
-	}
-	
-	
-	override public float Run ()
-	{
-		if (isPlayer)
+
+		public int parameterID = -1;
+		public int constantID = 0;
+		public AnimEngine editingAnimEngine;
+
+		public bool isPlayer;
+		public Char animChar;
+		public AnimationClip clip;
+		public string clip2D;
+
+		public enum AnimMethodChar { PlayCustom, StopCustom, ResetToIdle, SetStandard };
+		public AnimMethodChar method;
+		
+		public AnimationBlendMode blendMode;
+		public AnimLayer layer = AnimLayer.Base;
+		public AnimStandard standard;
+		public bool includeDirection = false;
+
+		public bool changeSound = false;
+		public AudioClip newSound;
+		public int newSoundParameterID = -1;
+
+		public int layerInt;
+		public bool idleAfter = true;
+		public bool idleAfterCustom = false;
+
+		public AnimPlayMode playMode;
+		public AnimPlayModeBase playModeBase = AnimPlayModeBase.PlayOnceAndClamp;
+
+		public float fadeTime = 0f;
+
+		public bool changeSpeed = false;
+		public float newSpeed = 0f;
+
+		public AnimMethodCharMecanim methodMecanim;
+		public MecanimCharParameter mecanimCharParameter;
+		public MecanimParameterType mecanimParameterType;
+		public string parameterName;
+		public float parameterValue;
+
+		
+		public ActionCharAnim ()
 		{
-			animChar = GameObject.FindWithTag (Tags.player).GetComponent <AC.Char>();
+			this.isDisplayed = true;
+			category = ActionCategory.Character;
+			title = "Animate";
+			description = "Affects a Character's animation. Can play or stop a custom animation, change a standard animation (idle, walk or run), change a footstep sound, or revert the Character to idle.";
 		}
 
-		if (animChar)
+
+		override public void AssignValues (List<ActionParameter> parameters)
 		{
-			if (animChar.animEngine == null)
+			animChar = AssignFile <Char> (parameters, parameterID, constantID, animChar);
+			newSound = (AudioClip) AssignObject <AudioClip> (parameters, newSoundParameterID, newSound);
+
+			if (isPlayer)
 			{
-				animChar.ResetAnimationEngine ();
+				animChar = KickStarter.player;
+			}
+		}
+
+		
+		override public float Run ()
+		{
+			if (animChar)
+			{
+				if (animChar.GetAnimEngine () != null)
+				{
+					return animChar.GetAnimEngine ().ActionCharAnimRun (this);
+				}
+				else
+				{
+					ACDebug.LogWarning ("Could not create animation engine for " + animChar.name);
+				}
+			}
+			else
+			{
+				ACDebug.LogWarning ("Could not create animation engine!");
+			}
+
+			return 0f;
+		}
+
+
+		override public void Skip ()
+		{
+			if (animChar)
+			{
+				if (animChar.GetAnimEngine () != null)
+				{
+					animChar.GetAnimEngine ().ActionCharAnimSkip (this);
+				}
+			}
+		}
+
+
+		#if UNITY_EDITOR
+
+		override public void ShowGUI (List<ActionParameter> parameters)
+		{
+			isPlayer = EditorGUILayout.Toggle ("Is Player?", isPlayer);
+			if (isPlayer)
+			{
+				if (Application.isPlaying)
+				{
+					animChar = KickStarter.player;
+				}
+				else if (AdvGame.GetReferences ().settingsManager)
+				{
+					animChar = AdvGame.GetReferences ().settingsManager.GetDefaultPlayer ();
+				}
+			}
+			else
+			{
+				parameterID = Action.ChooseParameterGUI ("Character:", parameters, parameterID, ParameterType.GameObject);
+				if (parameterID >= 0)
+				{
+					constantID = 0;
+					animChar = null;
+				}
+				else
+				{
+					animChar = (Char) EditorGUILayout.ObjectField ("Character:", animChar, typeof (Char), true);
+					
+					constantID = FieldToID <Char> (animChar, constantID);
+					animChar = IDToField <Char> (animChar, constantID, true);
+				}
+			}
+
+			if (animChar)
+			{
+				ResetAnimationEngine (animChar.animationEngine);
+			}
+
+			if (editingAnimEngine != null)
+			{
+				editingAnimEngine.ActionCharAnimGUI (this, parameters);
+			}
+			else
+			{
+				EditorGUILayout.HelpBox ("This Action requires a Character before more options will show.", MessageType.Info);
+			}
+
+			AfterRunningOption ();
+		}
+
+		
+		override public string SetLabel ()
+		{
+			string labelAdd = "";
+			
+			if (isPlayer)
+			{
+				labelAdd = " (Player)";
+			}
+			else if (animChar)
+			{
+				labelAdd = " (" + animChar.name + ")";
 			}
 			
-			if (animChar.animEngine != null)
-			{
-				return animChar.animEngine.ActionCharAnimRun (this);
-			}
-			else
-			{
-				Debug.LogError ("Could not create animation engine!");
-			}
+			return labelAdd;
 		}
-		else
+
+
+		override public void AssignConstantIDs (bool saveScriptsToo)
 		{
-			Debug.LogError ("Could not create animation engine!");
-		}
-
-		return 0f;
-	}
-
-
-	#if UNITY_EDITOR
-
-	override public void ShowGUI ()
-	{
-		isPlayer = EditorGUILayout.Toggle ("Is Player?", isPlayer);
-		if (isPlayer)
-		{
-			if (Application.isPlaying)
+			if (!isPlayer)
 			{
-				animChar = GameObject.FindWithTag (Tags.player).GetComponent <AC.Char>();
-			}
-			else
-			{
-				animChar = AdvGame.GetReferences ().settingsManager.player;
+				if (saveScriptsToo && method == AnimMethodChar.PlayCustom)
+				{
+					if (animChar)
+					{
+						ResetAnimationEngine (animChar.animationEngine);
+					}
+					if (editingAnimEngine != null)
+					{
+						editingAnimEngine.AddSaveScript (this, animChar.gameObject);
+					}
+				}
+				AssignConstantID <Char> (animChar, constantID, parameterID);
 			}
 		}
-		else
-		{
-			animChar = (Char) EditorGUILayout.ObjectField ("Character:", animChar, typeof (Char), true);
-		}
 
-		if (animChar)
+
+		private void ResetAnimationEngine (AnimationEngine animationEngine)
 		{
-			if (animChar.animEngine == null)
+			string className = "AnimEngine_" + animationEngine.ToString ();
+			
+			if (editingAnimEngine == null || editingAnimEngine.ToString () != className)
 			{
-				animChar.ResetAnimationEngine ();
-			}
-			if (animChar.animEngine)
-			{
-				animChar.animEngine.ActionCharAnimGUI (this);
+				editingAnimEngine = (AnimEngine) ScriptableObject.CreateInstance (className);
 			}
 		}
-		else
-		{
-			EditorGUILayout.HelpBox ("This Action requires a Character before more options will show.", MessageType.Info);
-		}
 
-		AfterRunningOption ();
-	}
-
-	
-	override public string SetLabel ()
-	{
-		string labelAdd = "";
 		
-		if (isPlayer)
-		{
-			labelAdd = " (Player)";
-		}
-		else if (animChar)
-		{
-			labelAdd = " (" + animChar.name + ")";
-		}
-		
-		return labelAdd;
+		#endif
+
 	}
-	
-	#endif
 
 }

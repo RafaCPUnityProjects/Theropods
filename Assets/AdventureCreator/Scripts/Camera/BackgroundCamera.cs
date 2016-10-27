@@ -1,7 +1,7 @@
 ﻿/*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
  *	"BackgroundCamera.cs"
  * 
@@ -12,24 +12,60 @@
 using UnityEngine;
 using System.Collections;
 
-public class BackgroundCamera : MonoBehaviour
+namespace AC
 {
-	
-	private void Awake ()
+
+	/**
+	 * This is used to display background images underneath scene geometry in 2.5D games.
+	 * It should not normally render anything other than a BackgroundImage.
+	 */
+	[RequireComponent (typeof (Camera))]
+	#if !(UNITY_4_6 || UNITY_4_7 || UNITY_5_0)
+	[HelpURL("http://www.adventurecreator.org/scripting-guide/class_a_c_1_1_background_camera.html")]
+	#endif
+	public class BackgroundCamera : MonoBehaviour
 	{
-		TurnOn ();
-	}
-	
-	public void TurnOn ()
-	{
-		if (LayerMask.NameToLayer (AdvGame.GetReferences ().settingsManager.backgroundImageLayer) == -1)
+		
+		private Camera _camera;
+		
+		
+		private void Awake ()
 		{
-			Debug.LogWarning ("No '" + AdvGame.GetReferences ().settingsManager.backgroundImageLayer + "' layer exists - please define one in the Tags Manager.");
+			_camera = GetComponent <Camera>();
+			
+			UpdateRect ();
+			
+			if (KickStarter.settingsManager)
+			{
+				if (LayerMask.NameToLayer (KickStarter.settingsManager.backgroundImageLayer) == -1)
+				{
+					ACDebug.LogWarning ("No '" + KickStarter.settingsManager.backgroundImageLayer + "' layer exists - please define one in the Tags Manager.");
+				}
+				else
+				{
+					GetComponent <Camera>().cullingMask = (1 << LayerMask.NameToLayer (KickStarter.settingsManager.backgroundImageLayer));
+				}
+			}
+			else
+			{
+				ACDebug.LogWarning ("A Settings Manager is required for this camera type");
+			}
 		}
-		else
+		
+
+		/**
+		 * Updates the Camera's Rect.
+		 * 
+		 */
+		public void UpdateRect ()
 		{
-			GetComponent<Camera>().cullingMask = (1 << LayerMask.NameToLayer (AdvGame.GetReferences ().settingsManager.backgroundImageLayer));
+			if (_camera == null)
+			{
+				_camera = GetComponent <Camera>();
+			}
+			_camera.rect = Camera.main.rect;
 		}
+		
 	}
 	
 }

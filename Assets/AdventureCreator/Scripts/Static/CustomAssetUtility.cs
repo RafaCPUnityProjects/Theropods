@@ -1,7 +1,7 @@
 /*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
  *	"CustomAssetUtility.cs"
  * 
@@ -17,74 +17,77 @@ using UnityEngine;
 using UnityEditor;
 using System.IO;
 
-public static class CustomAssetUtility
+namespace AC
 {
-	
-	public static string GetUniqueAssetPathNameOrFallback (string filename)
+
+	/**
+	 * A classs that assists with asset file creation.
+	 */
+	public static class CustomAssetUtility
 	{
-		string path;
-		try
+		
+		private static string GetUniqueAssetPathNameOrFallback (string filename)
 		{
-			System.Type assetdatabase = typeof (UnityEditor.AssetDatabase);
-			path = (string) assetdatabase.GetMethod ("GetUniquePathNameAtSelectedPath", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static).Invoke(assetdatabase, new object[] { filename });
+			string path;
+			try
+			{
+				System.Type assetdatabase = typeof (UnityEditor.AssetDatabase);
+				path = (string) assetdatabase.GetMethod ("GetUniquePathNameAtSelectedPath", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static).Invoke(assetdatabase, new object[] { filename });
+			}
+			catch
+			{
+				path = UnityEditor.AssetDatabase.GenerateUniqueAssetPath ("Assets/" + filename);
+			}
+			return path;
 		}
-		catch
+		
+
+		/**
+		 * <summary>Creates a ScriptableObject asset file.</summary>
+		 * <param name = "filename">The filename of the new asset</param>
+		 * <param name = "path">Where to save the new asset</param>
+		 * <returns>The created asset</returns>
+		 */
+		public static T CreateAsset<T> (string filename, string path = "") where T : ScriptableObject
 		{
-			path = UnityEditor.AssetDatabase.GenerateUniqueAssetPath("Assets/" + filename);
+			T asset = ScriptableObject.CreateInstance<T> ();
+
+			string assetPathAndName = "";
+			if (path == "")
+			{
+				assetPathAndName = GetUniqueAssetPathNameOrFallback (filename + ".asset");
+			}
+			else
+			{
+				assetPathAndName = AssetDatabase.GenerateUniqueAssetPath ("Assets" + Path.DirectorySeparatorChar.ToString () + path + Path.DirectorySeparatorChar.ToString () + filename + ".asset");
+			}
+			AssetDatabase.CreateAsset (asset, assetPathAndName);
+			
+			AssetDatabase.SaveAssets ();
+			EditorUtility.FocusProjectWindow ();
+
+			return asset;
 		}
-		return path;
-	}
-	
+		
 
-	public static void CreateAsset<T> () where T : ScriptableObject
-	{
-		T asset = ScriptableObject.CreateInstance<T> ();
-		string assetPathAndName = GetUniqueAssetPathNameOrFallback ("New " + typeof(T).ToString() + ".asset");
-		
-		AssetDatabase.CreateAsset (asset, assetPathAndName);
+		/**
+		 * <summary>Creates a ScriptableObject asset file.</summary>
+		 * <param name = "path">Where to save the new asset</param>
+		 * <returns>The created asset</returns>
+		 */
+		public static T CreateAndReturnAsset<T> (string path) where T : ScriptableObject
+		{
+			T asset = ScriptableObject.CreateInstance<T> ();
+			string assetPathAndName = AssetDatabase.GenerateUniqueAssetPath ("Assets" + Path.DirectorySeparatorChar.ToString () + path + Path.DirectorySeparatorChar.ToString () + typeof(T).ToString() + ".asset");
+			AssetDatabase.CreateAsset (asset, assetPathAndName);
+			
+			AssetDatabase.SaveAssets ();
+			EditorUtility.FocusProjectWindow ();
+			
+			return asset;
+		}
 
-		AssetDatabase.SaveAssets ();
-		EditorUtility.FocusProjectWindow ();
-		Selection.activeObject = asset;
 	}
-	
-	
-	public static void CreateAsset<T> (string filename, string path) where T : ScriptableObject
-	{
-		T asset = ScriptableObject.CreateInstance<T> ();
-		string assetPathAndName = AssetDatabase.GenerateUniqueAssetPath ("Assets" + Path.DirectorySeparatorChar.ToString () + path + Path.DirectorySeparatorChar.ToString () + filename + ".asset");
-		AssetDatabase.CreateAsset (asset, assetPathAndName);
-		
-		AssetDatabase.SaveAssets ();
-		EditorUtility.FocusProjectWindow ();
-	}
-	
-	
-	public static T CreateAndReturnAsset<T> (string filename, string path) where T : ScriptableObject
-	{
-		T asset = ScriptableObject.CreateInstance<T> ();
-		string assetPathAndName = AssetDatabase.GenerateUniqueAssetPath ("Assets" + Path.DirectorySeparatorChar.ToString () + path + Path.DirectorySeparatorChar.ToString () + filename + ".asset");
-		AssetDatabase.CreateAsset (asset, assetPathAndName);
-		
-		AssetDatabase.SaveAssets ();
-		EditorUtility.FocusProjectWindow ();
-		
-		return asset;
-	}
-	
-	
-	public static T CreateAndReturnAsset<T> (string path) where T : ScriptableObject
-	{
-		T asset = ScriptableObject.CreateInstance<T> ();
-		string assetPathAndName = AssetDatabase.GenerateUniqueAssetPath ("Assets" + Path.DirectorySeparatorChar.ToString () + path + Path.DirectorySeparatorChar.ToString () + typeof(T).ToString() + ".asset");
-		AssetDatabase.CreateAsset (asset, assetPathAndName);
-		
-		AssetDatabase.SaveAssets ();
-		EditorUtility.FocusProjectWindow ();
-		
-		return asset;
-	}
-
 }
 
 #endif

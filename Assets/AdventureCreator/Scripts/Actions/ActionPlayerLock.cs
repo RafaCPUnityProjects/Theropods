@@ -1,7 +1,7 @@
 /*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
  *	"ActionPlayerLock.cs"
  * 
@@ -13,151 +13,224 @@
 
 using UnityEngine;
 using System.Collections;
-using AC;
 
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
 
-[System.Serializable]
-public class ActionPlayerLock : Action
+namespace AC
 {
-	
-	public enum LockType {Enabled, Disabled, NoChange};
-	
-	public LockType doUpLock = LockType.Enabled;
-	public LockType doDownLock = LockType.Enabled;
-	public LockType doLeftLock = LockType.Enabled;
-	public LockType doRightLock = LockType.Enabled;
-	
-	public PlayerMoveLock doRunLock = PlayerMoveLock.Free;
-	public LockType doInventoryLock = LockType.Enabled;
-	public LockType doSaveLock = LockType.Enabled;
-	public Paths movePath;
 
-	
-	public ActionPlayerLock ()
+	[System.Serializable]
+	public class ActionPlayerLock : Action
 	{
-		this.isDisplayed = true;
-		title = "Player: Constrain";
-	}
-	
-	
-	override public float Run ()
-	{
-		PlayerInput playerInput = GameObject.FindWithTag (Tags.gameEngine).GetComponent <PlayerInput>();
-		PlayerMenus playerMenus = playerInput.GetComponent <PlayerMenus>();
-		RuntimeInventory runtimeInventory = GameObject.FindWithTag (Tags.persistentEngine).GetComponent <RuntimeInventory>();
-		Player player = GameObject.FindWithTag (Tags.player).GetComponent <Player>();
 		
-		if (playerInput)
+		public LockType doUpLock = LockType.NoChange;
+		public LockType doDownLock = LockType.NoChange;
+		public LockType doLeftLock = LockType.NoChange;
+		public LockType doRightLock = LockType.NoChange;
+		
+		public PlayerMoveLock doRunLock = PlayerMoveLock.NoChange;
+		public LockType freeAimLock = LockType.NoChange;
+		public LockType cursorState = LockType.NoChange;
+		public LockType doGravityLock = LockType.NoChange;
+		public LockType doHotspotHeadTurnLock = LockType.NoChange;
+		public Paths movePath;
+
+		
+		public ActionPlayerLock ()
 		{
-			if (doUpLock == LockType.Disabled)
+			this.isDisplayed = true;
+			category = ActionCategory.Player;
+			title = "Constrain";
+			description = "Locks and unlocks various aspects of Player control. When using Direct or First Person control, can also be used to specify a Path object to restrict movement to.";
+		}
+		
+		
+		override public float Run ()
+		{
+			Player player = KickStarter.player;
+
+			if (KickStarter.playerInput)
 			{
-				playerInput.isUpLocked = true;
-			}
-			else if (doUpLock == LockType.Enabled)
-			{
-				playerInput.isUpLocked = false;
-			}
-	
-			if (doDownLock == LockType.Disabled)
-			{
-				playerInput.isDownLocked = true;
-			}
-			else if (doDownLock == LockType.Enabled)
-			{
-				playerInput.isDownLocked = false;
+				if (IsSingleLockMovement ())
+				{
+					doLeftLock = doUpLock;
+					doRightLock = doUpLock;
+					doDownLock = doUpLock;
+				}
+
+				if (doUpLock == LockType.Disabled)
+				{
+					KickStarter.playerInput.SetUpLock (true);
+				}
+				else if (doUpLock == LockType.Enabled)
+				{
+					KickStarter.playerInput.SetUpLock (false);
+				}
+		
+				if (doDownLock == LockType.Disabled)
+				{
+					KickStarter.playerInput.SetDownLock (true);
+				}
+				else if (doDownLock == LockType.Enabled)
+				{
+					KickStarter.playerInput.SetDownLock (false);
+				}
+				
+				if (doLeftLock == LockType.Disabled)
+				{
+					KickStarter.playerInput.SetLeftLock (true);
+				}
+				else if (doLeftLock == LockType.Enabled)
+				{
+					KickStarter.playerInput.SetLeftLock (false);
+				}
+		
+				if (doRightLock == LockType.Disabled)
+				{
+					KickStarter.playerInput.SetRightLock (true);
+				}
+				else if (doRightLock == LockType.Enabled)
+				{
+					KickStarter.playerInput.SetRightLock (false);
+				}
+
+				if (IsInFirstPerson ())
+				{
+					if (freeAimLock == LockType.Disabled)
+					{
+						KickStarter.playerInput.SetFreeAimLock (true);
+					}
+					else if (freeAimLock == LockType.Enabled)
+					{
+						KickStarter.playerInput.SetFreeAimLock (false);
+					}
+				}
+
+				if (cursorState == LockType.Disabled)
+				{
+					KickStarter.playerInput.cursorIsLocked = false;
+				}
+				else if (cursorState == LockType.Enabled)
+				{
+					KickStarter.playerInput.cursorIsLocked = true;
+				}
+
+				if (doRunLock != PlayerMoveLock.NoChange)
+				{
+					KickStarter.playerInput.runLock = doRunLock;
+				}
 			}
 			
-			if (doLeftLock == LockType.Disabled)
+			if (player)
 			{
-				playerInput.isLeftLocked = true;
-			}
-			else if (doLeftLock == LockType.Enabled)
-			{
-				playerInput.isLeftLocked = false;
-			}
-	
-			if (doRightLock == LockType.Disabled)
-			{
-				playerInput.isRightLocked = true;
-			}
-			else if (doRightLock == LockType.Enabled)
-			{
-				playerInput.isRightLocked = false;
+				if (movePath)
+				{
+					player.SetLockedPath (movePath);
+					player.SetMoveDirectionAsForward ();
+				}
+				else if (player.GetPath ())
+				{
+					player.EndPath ();
+				}
+
+				if (doGravityLock == LockType.Enabled)
+				{
+					player.ignoreGravity = false;
+				}
+				else if (doGravityLock == LockType.Disabled)
+				{
+					player.ignoreGravity = true;
+				}
+
+				if (AllowHeadTurning ())
+				{
+					if (doHotspotHeadTurnLock == LockType.Disabled)
+					{
+						player.SetHotspotHeadTurnLock (true);
+					}
+					else if (doHotspotHeadTurnLock == LockType.Enabled)
+					{
+						player.SetHotspotHeadTurnLock (false);
+					}
+				}
 			}
 			
-			if (doRunLock != PlayerMoveLock.NoChange)
-			{
-				playerInput.runLock = doRunLock;
-			}
+			return 0f;
 		}
 		
-		if (runtimeInventory)
+		
+		#if UNITY_EDITOR
+		
+		override public void ShowGUI ()
 		{
-			if (doInventoryLock == LockType.Disabled)
+			if (IsSingleLockMovement ())
 			{
-				runtimeInventory.isLocked = true;
+				doUpLock = (LockType) EditorGUILayout.EnumPopup ("Movement:", doUpLock);
 			}
-			else if (doInventoryLock == LockType.Enabled && runtimeInventory.localItems.Count > 0)
+			else
 			{
-				runtimeInventory.isLocked = false;		
+				doUpLock = (LockType) EditorGUILayout.EnumPopup ("Up movement:", doUpLock);
+				doDownLock = (LockType) EditorGUILayout.EnumPopup ("Down movement:", doDownLock);
+				doLeftLock = (LockType) EditorGUILayout.EnumPopup ("Left movement:", doLeftLock);
+				doRightLock = (LockType) EditorGUILayout.EnumPopup ("Right movement:", doRightLock);
 			}
+
+			if (IsInFirstPerson ())
+			{
+				freeAimLock = (LockType) EditorGUILayout.EnumPopup ("Free-aiming:", freeAimLock);
+			}
+
+			cursorState = (LockType) EditorGUILayout.EnumPopup ("Cursor lock:", cursorState);
+			doRunLock = (PlayerMoveLock) EditorGUILayout.EnumPopup ("Walk / run:", doRunLock);
+			doGravityLock = (LockType) EditorGUILayout.EnumPopup ("Affected by gravity?", doGravityLock);
+			movePath = (Paths) EditorGUILayout.ObjectField ("Move path:", movePath, typeof (Paths), true);
+
+			if (AllowHeadTurning ())
+			{
+				doHotspotHeadTurnLock = (LockType) EditorGUILayout.EnumPopup ("Hotspot head-turning?", doHotspotHeadTurnLock);
+			}
+			
+			AfterRunningOption ();
 		}
 		
-		if (playerMenus)
+		#endif
+
+
+		private bool AllowHeadTurning ()
 		{
-			if (doSaveLock == LockType.Disabled)
+			if (AdvGame.GetReferences ().settingsManager != null && AdvGame.GetReferences ().settingsManager.cameraPerspective != CameraPerspective.TwoD && AdvGame.GetReferences ().settingsManager.playerFacesHotspots)
 			{
-				playerMenus.lockSave = true;
+				return true;
 			}
-			else if (doSaveLock == LockType.Enabled)
-			{
-				playerMenus.lockSave = false;
-			}
+			return false;
 		}
-		
-		if (player)
+
+
+		private bool IsSingleLockMovement ()
 		{
-			if (movePath)
+			if (AdvGame.GetReferences ().settingsManager)
 			{
-				player.SetLockedPath (movePath);
-				player.SetMoveDirectionAsForward ();
+				SettingsManager settingsManager = AdvGame.GetReferences ().settingsManager;
+				if (settingsManager.movementMethod == MovementMethod.PointAndClick || settingsManager.movementMethod == MovementMethod.Drag || settingsManager.movementMethod == MovementMethod.StraightToCursor)
+				{
+					return true;
+				}
 			}
-			else if (player.activePath)
-			{
-				player.SetPath (null);
-			}
+			return false;
 		}
-		
-		return 0f;
+
+
+		private bool IsInFirstPerson ()
+		{
+			if (AdvGame.GetReferences ().settingsManager && AdvGame.GetReferences ().settingsManager.IsInFirstPerson ())
+			{
+				return true;
+			}
+			return false;
+		}
+
 	}
-	
-	
-	#if UNITY_EDITOR
-	
-	override public void ShowGUI ()
-	{
-		doUpLock = (LockType) EditorGUILayout.EnumPopup ("Up movement:", doUpLock);
-
-		doDownLock = (LockType) EditorGUILayout.EnumPopup ("Down movement:", doDownLock);
-
-		doLeftLock = (LockType) EditorGUILayout.EnumPopup ("Left movement:", doLeftLock);
-
-		doRightLock = (LockType) EditorGUILayout.EnumPopup ("Right movement:", doRightLock);
-		
-		doRunLock = (PlayerMoveLock) EditorGUILayout.EnumPopup ("Walk / run:", doRunLock);
-
-		doInventoryLock = (LockType) EditorGUILayout.EnumPopup ("Inventory:", doInventoryLock);
-		
-		doSaveLock = (LockType) EditorGUILayout.EnumPopup ("Save:", doSaveLock);
-		
-		movePath = (Paths) EditorGUILayout.ObjectField ("Move path:", movePath, typeof (Paths), true);
-		
-		AfterRunningOption ();
-	}
-	
-	#endif
 
 }

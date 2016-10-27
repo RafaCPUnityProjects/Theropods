@@ -1,7 +1,7 @@
 ﻿/*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
  *	"BackgroundImage.cs"
  * 
@@ -12,70 +12,110 @@
 using UnityEngine;
 using System.Collections;
 
-public class BackgroundImage : MonoBehaviour
+namespace AC
 {
-	
-	private float shakeDecay;
-	private float shakeIntensity;
-	private Rect originalPixelInset;
+
+	/**
+	 * Controls a GUITexture for use in background images in 2.5D games.
+	 */
+	[RequireComponent (typeof (GUITexture))]
+	#if !(UNITY_4_6 || UNITY_4_7 || UNITY_5_0)
+	[HelpURL("http://www.adventurecreator.org/scripting-guide/class_a_c_1_1_background_image.html")]
+	#endif
+	public class BackgroundImage : MonoBehaviour
+	{
+
+		private float shakeDuration;
+		private float startTime;
+		private float startShakeIntensity;
+		private float shakeIntensity;
+		private Rect originalPixelInset;
 
 
-	public void TurnOn ()
-	{
-		if (LayerMask.NameToLayer (AdvGame.GetReferences ().settingsManager.backgroundImageLayer) == -1)
+		/**
+		 * <summary>Sets the background image to a supplied texture</summary>
+		 * <param name = "_texture">The texture to set the background image to</param>
+		 */
+		public void SetImage (Texture2D _texture)
 		{
-			Debug.LogWarning ("No '" + AdvGame.GetReferences ().settingsManager.backgroundImageLayer + "' layer exists - please define one in the Tags Manager.");
+			GetComponent <GUITexture>().texture = _texture;
 		}
-		else
+
+
+		/**
+		 * Displays the background image (within the GUITexture) fullscreen.
+		 */
+		public void TurnOn ()
 		{
-			gameObject.layer = LayerMask.NameToLayer (AdvGame.GetReferences ().settingsManager.backgroundImageLayer);
-		}
-		
-		if (GetComponent <GUITexture>())
-		{
-			GetComponent <GUITexture>().enabled = true;
-		}
-		else
-		{
-			Debug.LogWarning (this.name + " has no GUITexture component");
-		}
-	}
-	
-	
-	public void TurnOff ()
-	{
-		gameObject.layer = LayerMask.NameToLayer (AdvGame.GetReferences ().settingsManager.deactivatedLayer);
-		
-		if (GetComponent <GUITexture>())
-		{
-			GetComponent <GUITexture>().enabled = false;
-		}
-		else
-		{
-			Debug.LogWarning (this.name + " has no GUITexture component");
-		}
-	}
-	
-	
-	public void Shake (float _shakeDecay)
-	{
-		if (shakeIntensity > 0f)
-		{
-			this.GetComponent <GUITexture>().pixelInset = originalPixelInset;
+			if (LayerMask.NameToLayer (KickStarter.settingsManager.backgroundImageLayer) == -1)
+			{
+				ACDebug.LogWarning ("No '" + KickStarter.settingsManager.backgroundImageLayer + "' layer exists - please define one in the Tags Manager.");
+			}
+			else
+			{
+				gameObject.layer = LayerMask.NameToLayer (KickStarter.settingsManager.backgroundImageLayer);
+			}
+			
+			if (GetComponent <GUITexture>())
+			{
+				GetComponent <GUITexture>().enabled = true;
+			}
+			else
+			{
+				ACDebug.LogWarning (this.name + " has no GUITexture component");
+			}
 		}
 		
-		originalPixelInset = this.GetComponent <GUITexture>().pixelInset;
+
+		/**
+		 * Hides the background image (within the GUITexture) from view.
+		 */
+		public void TurnOff ()
+		{
+			gameObject.layer = LayerMask.NameToLayer (KickStarter.settingsManager.deactivatedLayer);
+			
+			if (GetComponent <GUITexture>())
+			{
+				GetComponent <GUITexture>().enabled = false;
+			}
+			else
+			{
+				ACDebug.LogWarning (this.name + " has no GUITexture component");
+			}
+		}
 		
-		shakeDecay = _shakeDecay;
-		shakeIntensity = shakeDecay * 150f;
-	}
-	
-	
-	private void FixedUpdate ()
-	{
-		if (this.GetComponent <GUITexture>())
+
+		/**
+		 * <summary>Shakes the background image (within the GUITexture) for an earthquake-like effect.</summary>
+		 * <param name = "_shakeIntensity">How intense the shake effect should be</param>
+		 * <param name = "_duration">How long the shake effect should last, in seconds</param>
+		 */
+		public void Shake (float _shakeIntensity, float _duration)
 		{
 			if (shakeIntensity > 0f)
+			{
+				this.GetComponent <GUITexture>().pixelInset = originalPixelInset;
+			}
+			
+			originalPixelInset = this.GetComponent <GUITexture>().pixelInset;
+
+			shakeDuration = _duration;
+			startTime = Time.time;
+			shakeIntensity = _shakeIntensity;
+
+			startShakeIntensity = shakeIntensity;
+
+			if (this.GetComponent <GUITexture>())
+			{
+				StopCoroutine (UpdateShake ());
+				StartCoroutine (UpdateShake ());
+			}
+		}
+		
+
+		private IEnumerator UpdateShake ()
+		{
+			while (shakeIntensity > 0f)
 			{
 				float _size = Random.Range (0, shakeIntensity) * 0.2f;
 				
@@ -86,16 +126,17 @@ public class BackgroundImage : MonoBehaviour
 					originalPixelInset.width + _size,
 					originalPixelInset.height + _size
 				);
-				
-				shakeIntensity -= shakeDecay;
+
+				shakeIntensity = Mathf.Lerp (startShakeIntensity, 0f, AdvGame.Interpolate (startTime, shakeDuration, MoveMethod.Linear, null));
+
+				yield return new WaitForEndOfFrame ();
 			}
 			
-			else if (shakeIntensity < 0f)
-			{
-				shakeIntensity = 0f;
-				this.GetComponent <GUITexture>().pixelInset = originalPixelInset;
-			}
+			shakeIntensity = 0f;
+			this.GetComponent <GUITexture>().pixelInset = originalPixelInset;
 		}
+
+		
 	}
-	
+
 }

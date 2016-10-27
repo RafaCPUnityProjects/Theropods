@@ -1,64 +1,87 @@
 ﻿/*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
  *	"ParticleSwitch.cs"
  * 
  *	This can be used, via the Object: Send Message Action,
- *	to turn it's attached particle systems on and off.
+ *	to turn its attached particle systems on and off.
  * 
  */
 
 using UnityEngine;
 using System.Collections;
 
-public class ParticleSwitch : MonoBehaviour
+namespace AC
 {
-	
-	public bool enableOnStart = false;
-	
-	
-	private void Awake ()
+
+	/**
+	 * This script provides functions to enable and disable the ParticleSystem component on the GameObject it is attached to.
+	 * These functions can be called either through script, or with the "Object: Send message" Action.
+	 */
+	[AddComponentMenu("Adventure Creator/Misc/Particle switch")]
+	#if !(UNITY_4_6 || UNITY_4_7 || UNITY_5_0)
+	[HelpURL("http://www.adventurecreator.org/scripting-guide/class_a_c_1_1_particle_switch.html")]
+	#endif
+	public class ParticleSwitch : MonoBehaviour
 	{
-		Switch (enableOnStart);
-	}
-	
-	
-	public void TurnOn ()
-	{
-		Switch (true);
-	}
-	
-	
-	public void TurnOff ()
-	{
-		Switch (false);
-	}
+
+		/** If True, then the Light component will be enabled when the game begins. */
+		public bool enableOnStart = false;
+		
+		
+		private void Awake ()
+		{
+			Switch (enableOnStart);
+		}
+		
+
+		/**
+		 * Enables the ParticleSystem component on the GameObject this script is attached to.
+		 */
+		public void TurnOn ()
+		{
+			Switch (true);
+		}
+		
+
+		/**
+		 * Disables the ParticleSystem component on the GameObject this script is attached to.
+		 */
+		public void TurnOff ()
+		{
+			Switch (false);
+		}
 
 
-	public void Interact ()
-	{
-		if (this.GetComponent<ParticleSystem>())
+		/**
+		 * Causes the ParticleSystem component on the GameObject to emit its maximum number of particles in one go.
+		 */
+		public void Interact ()
 		{
-			this.GetComponent<ParticleSystem>().Emit (this.GetComponent<ParticleSystem>().maxParticles);
-		}
-	}
-	
-	
-	private void Switch (bool turnOn)
-	{
-		if (this.GetComponent<ParticleSystem>())
-		{
-			if (turnOn)
+			if (GetComponent <ParticleSystem>())
 			{
-				this.GetComponent<ParticleSystem>().Play ();
-			}
-			else
-			{
-				this.GetComponent<ParticleSystem>().Stop ();
+				GetComponent <ParticleSystem>().Emit (GetComponent <ParticleSystem>().maxParticles);
 			}
 		}
+		
+		
+		private void Switch (bool turnOn)
+		{
+			if (GetComponent <ParticleSystem>())
+			{
+				if (turnOn)
+				{
+					GetComponent <ParticleSystem>().Play ();
+				}
+				else
+				{
+					GetComponent <ParticleSystem>().Stop ();
+				}
+			}
+		}
+		
 	}
-	
+
 }

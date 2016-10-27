@@ -1,87 +1,166 @@
 ﻿using UnityEngine;
 using System.Collections;
-using AC;
 
-[ExecuteInEditMode]
-public class MenuPreview : MonoBehaviour
+namespace AC
 {
-	
-	private MenuManager menuManager;
-	private GUIStyle normalStyle;
-	private GUIStyle highlightedStyle;
 
-	
-	private void SetStyles (MenuElement element)
+	/**
+	 * Allows Menus (see: Menu) made in MenuManager to be shown in the Game Window when the game is not running, allowing for real-time previews as they are built.
+	 */
+	[ExecuteInEditMode]
+	#if !(UNITY_4_6 || UNITY_4_7 || UNITY_5_0)
+	[HelpURL("http://www.adventurecreator.org/scripting-guide/class_a_c_1_1_menu_preview.html")]
+	#endif
+	public class MenuPreview : MonoBehaviour
 	{
-		normalStyle = new GUIStyle();
-		normalStyle.normal.textColor = element.fontColor;
-		normalStyle.font = element.font;
-		normalStyle.fontSize = (int) (AdvGame.GetMainGameViewSize ().x * element.fontScaleFactor / 100);
-		normalStyle.alignment = TextAnchor.MiddleCenter;
-		
-		highlightedStyle = new GUIStyle();
-		highlightedStyle.font = element.font;
-		highlightedStyle.fontSize = (int) (AdvGame.GetMainGameViewSize ().x * element.fontScaleFactor / 100);
-		highlightedStyle.normal.textColor = element.fontHighlightColor;
-		highlightedStyle.normal.background = element.highlightTexture;
-		highlightedStyle.alignment = TextAnchor.MiddleCenter;
-	}
-	
-	
-	private void OnGUI ()
-	{
-		if (!Application.isPlaying)
+
+		#if UNITY_EDITOR
+
+		private MenuManager menuManager;
+		private GUIStyle normalStyle;
+		private GUIStyle highlightedStyle;
+		private Vector2 screenSize;
+
+
+		private void SetStyles (MenuElement element)
 		{
-			if (AdvGame.GetReferences ())
-			{
-				menuManager = AdvGame.GetReferences ().menuManager;
-				
-				if (menuManager && menuManager.drawInEditor)
-				{
-					if (menuManager.GetSelectedMenu () != null)
-					{
-						Menu menu = menuManager.GetSelectedMenu ();
+			normalStyle = new GUIStyle();
+			normalStyle.normal.textColor = element.fontColor;
+			normalStyle.font = element.font;
+			normalStyle.fontSize = element.GetFontSize ();
+			normalStyle.alignment = TextAnchor.MiddleCenter;
+			
+			highlightedStyle = new GUIStyle();
+			highlightedStyle.font = element.font;
+			highlightedStyle.fontSize = element.GetFontSize ();
+			highlightedStyle.normal.textColor = element.fontHighlightColor;
+			highlightedStyle.normal.background = element.highlightTexture;
+			highlightedStyle.alignment = TextAnchor.MiddleCenter;
+		}
 
-						if ((menu.appearType == AppearType.Manual || menu.appearType == AppearType.OnInputKey) && menu.pauseWhenEnabled && menuManager.pauseTexture)
+		
+		private void Update ()
+		{
+			if (!Application.isPlaying)
+			{
+				if (AdvGame.GetReferences ())
+				{
+					menuManager = AdvGame.GetReferences ().menuManager;
+					
+					if (menuManager)
+					{
+						if (menuManager.GetSelectedMenu () != null)
 						{
-							GUI.DrawTexture (AdvGame.GUIRect (0.5f, 0.5f, 1f, 1f), menuManager.pauseTexture, ScaleMode.ScaleToFit, true, 0f);
-						}
-						
-						if ((menu.positionType == AC_PositionType.FollowCursor || menu.positionType == AC_PositionType.AppearAtCursorAndFreeze || menu.positionType == AC_PositionType.OnHotspot || menu.positionType == AC_PositionType.AboveSpeakingCharacter) && AdvGame.GetReferences ().cursorManager && AdvGame.GetReferences ().cursorManager.pointerTexture)
-						{
-							GUI.DrawTexture (AdvGame.GUIBox (new Vector2 (AdvGame.GetMainGameViewSize ().x / 2f, AdvGame.GetMainGameViewSize ().y / 2f), AdvGame.GetReferences ().cursorManager.normalCursorSize), AdvGame.GetReferences ().cursorManager.pointerTexture, ScaleMode.ScaleToFit, true, 0f);
-						}
-						
-						menu.StartDisplay ();
-										
-						foreach (MenuElement element in menu.visibleElements)
-						{
-							SetStyles (element);
-							
-							for (int i=0; i<element.GetNumSlots (); i++)
+							AC.Menu menu = menuManager.GetSelectedMenu ();
+
+							foreach (MenuElement element in menu.visibleElements)
 							{
-								if (menuManager.GetSelectedElement () == element && element.isClickable && i == 0)
+								for (int i=0; i<element.GetNumSlots (); i++)
 								{
-									element.Display (highlightedStyle, i, 1f);
-								}
-								
-								else
-								{
-									element.Display (normalStyle, i, 1f);
+									if (menuManager.GetSelectedElement () == element && element.isClickable && i == 0)
+									{
+										element.PreDisplay (i, 0, false);
+									}
+									
+									else
+									{
+										element.PreDisplay (i, 0, false);
+									}
 								}
 							}
-						}
-				
-						menu.EndDisplay ();
-						
-						if (menuManager.drawOutlines)
-						{
-							menu.DrawOutline (menuManager.GetSelectedElement ());
 						}
 					}
 				}
 			}
 		}
+		
+		
+		private void OnGUI ()
+		{
+			if (!Application.isPlaying)
+			{
+				if (AdvGame.GetReferences ())
+				{
+					menuManager = AdvGame.GetReferences ().menuManager;
+
+					if (menuManager && menuManager.drawInEditor && AdvGame.GetReferences ().viewingMenuManager)
+					{
+						if (menuManager.GetSelectedMenu () != null)
+						{
+							AC.Menu menu = menuManager.GetSelectedMenu ();
+
+							if (menu.IsUnityUI ())
+							{
+								return;
+							}
+
+							CheckScreenSize (menu);
+
+							if ((menu.appearType == AppearType.Manual || menu.appearType == AppearType.OnInputKey) && menu.pauseWhenEnabled && menuManager.pauseTexture)
+							{
+								GUI.DrawTexture (AdvGame.GUIRect (0.5f, 0.5f, 1f, 1f), menuManager.pauseTexture, ScaleMode.ScaleToFit, true, 0f);
+							}
+							
+							if ((menu.positionType == AC_PositionType.FollowCursor || menu.positionType == AC_PositionType.AppearAtCursorAndFreeze || menu.positionType == AC_PositionType.OnHotspot || menu.positionType == AC_PositionType.AboveSpeakingCharacter || menu.positionType == AC_PositionType.AbovePlayer) && AdvGame.GetReferences ().cursorManager && AdvGame.GetReferences ().cursorManager.pointerIcon.texture)
+							{
+								CursorIconBase icon = AdvGame.GetReferences ().cursorManager.pointerIcon;
+								GUI.DrawTexture (AdvGame.GUIBox (new Vector2 (AdvGame.GetMainGameViewSize ().x / 2f, AdvGame.GetMainGameViewSize ().y / 2f), icon.size), icon.texture, ScaleMode.ScaleToFit, true, 0f);
+							}
+							
+							menu.StartDisplay ();
+											
+							foreach (MenuElement element in menu.visibleElements)
+							{
+								SetStyles (element);
+								
+								for (int i=0; i<element.GetNumSlots (); i++)
+								{
+									if (menuManager.GetSelectedElement () == element && element.isClickable && i == 0)
+									{
+									//	element.PreDisplay (i, true, 0);
+										element.Display (highlightedStyle, i, 1f, true);
+									}
+									
+									else
+									{
+									//	element.PreDisplay (i, true, 0);
+										element.Display (normalStyle, i, 1f, false);
+									}
+								}
+
+								if (UnityEditor.EditorWindow.mouseOverWindow != null && UnityEditor.EditorWindow.mouseOverWindow.ToString ().Contains ("(UnityEditor.GameView)"))
+								{
+									if (menu.IsPointerOverSlot (element, 0, Event.current.mousePosition + new Vector2 (menu.GetRect ().x, menu.GetRect ().y)))
+									{
+										menuManager.SelectElementFromPreview (menu, element);
+									}
+								}
+							}
+					
+							menu.EndDisplay ();
+							
+							if (menuManager.drawOutlines)
+							{
+								menu.DrawOutline (menuManager.GetSelectedElement ());
+							}
+						}
+					}
+				}
+			}
+		}
+
+
+		private void CheckScreenSize (AC.Menu menu)
+		{
+			if (screenSize.x != Screen.width || screenSize.y != Screen.height)
+			{
+				screenSize = new Vector2 (Screen.width, Screen.height);
+				menu.Recalculate ();
+			}
+		}
+
+		#endif
+
 	}
 
 }

@@ -1,7 +1,7 @@
 ﻿/*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
  *	"ActionInventorySelect.cs"
  * 
@@ -12,127 +12,183 @@
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
-using AC;
 
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
 
-[System.Serializable]
-public class ActionInventorySelect : Action
+namespace AC
 {
-	
-	public bool giveToPlayer = false;
-	
-	public int invID;
-	private int invNumber;
-	
-	private InventoryManager inventoryManager;
-	
-	
-	override public float Run ()
+
+	[System.Serializable]
+	public class ActionInventorySelect : Action
 	{
-		RuntimeInventory runtimeInventory = GameObject.FindWithTag (Tags.persistentEngine).GetComponent <RuntimeInventory>();
-		
-		if (runtimeInventory)
+
+		public enum InventorySelectType { SelectItem, DeselectActive };
+		public InventorySelectType selectType = InventorySelectType.SelectItem;
+		public SelectItemMode selectItemMode = SelectItemMode.Use;
+
+		public bool giveToPlayer = false;
+
+		public int parameterID = -1;
+		public int invID;
+		private int invNumber;
+
+		#if UNITY_EDITOR
+		private InventoryManager inventoryManager;
+		private SettingsManager settingsManager;
+		#endif
+
+
+		public ActionInventorySelect ()
 		{
-			if (giveToPlayer)
+			this.isDisplayed = true;
+			category = ActionCategory.Inventory;
+			title = "Select";
+			description = "Selects a chosen inventory item, as though the player clicked on it in the Inventory menu. Will optionally add the specified item to the inventory if it is not currently held.";
+		}
+
+
+		override public void AssignValues (List<ActionParameter> parameters)
+		{
+			invID = AssignInvItemID (parameters, parameterID, invID);
+		}
+		
+		
+		override public float Run ()
+		{
+			if (KickStarter.runtimeInventory)
 			{
-				runtimeInventory.Add (invID, 1);
+				if (selectType == InventorySelectType.DeselectActive)
+				{
+					KickStarter.runtimeInventory.SetNull ();
+				}
+				else
+				{
+					if (!KickStarter.settingsManager.CanSelectItems (true))
+					{
+						return 0f;
+					}
+
+					if (giveToPlayer)
+					{
+						KickStarter.runtimeInventory.Add (invID, 1, false, -1);
+					}
+
+					KickStarter.runtimeInventory.SelectItemByID (invID, selectItemMode);
+				}
 			}
 			
-			runtimeInventory.SelectItemByID (invID);
+			return 0f;
 		}
-		
-		return 0f;
-	}
 
-	
-	#if UNITY_EDITOR
-
-	public ActionInventorySelect ()
-	{
-		this.isDisplayed = true;
-		title = "Inventory: Select";
-	}
-	
-	
-	override public void ShowGUI ()
-	{
-		if (!inventoryManager)
-		{
-			inventoryManager = AdvGame.GetReferences ().inventoryManager;
-		}
 		
-		if (inventoryManager)
+		#if UNITY_EDITOR
+
+		override public void ShowGUI (List<ActionParameter> parameters)
 		{
-			// Create a string List of the field's names (for the PopUp box)
-			List<string> labelList = new List<string>();
-			
-			int i = 0;
-			invNumber = -1;
-			
-			if (inventoryManager.items.Count > 0)
+			selectType = (InventorySelectType) EditorGUILayout.EnumPopup ("Select type:", selectType);
+			if (selectType == InventorySelectType.DeselectActive)
 			{
-				foreach (InvItem _item in inventoryManager.items)
+				AfterRunningOption ();
+				return;
+			}
+
+			if (!inventoryManager)
+			{
+				inventoryManager = AdvGame.GetReferences ().inventoryManager;
+			}
+			if (!settingsManager)
+			{
+				settingsManager = AdvGame.GetReferences ().settingsManager;
+			}
+			
+			if (inventoryManager)
+			{
+				// Create a string List of the field's names (for the PopUp box)
+				List<string> labelList = new List<string>();
+				
+				int i = 0;
+				if (parameterID == -1)
 				{
-					labelList.Add (_item.label);
-					
-					// If an item has been removed, make sure selected variable is still valid
-					if (_item.id == invID)
+					invNumber = -1;
+				}
+				
+				if (inventoryManager.items.Count > 0)
+				{
+					foreach (InvItem _item in inventoryManager.items)
 					{
-						invNumber = i;
+						labelList.Add (_item.label);
+						
+						// If an item has been removed, make sure selected variable is still valid
+						if (_item.id == invID)
+						{
+							invNumber = i;
+						}
+						
+						i++;
 					}
 					
-					i++;
-				}
-				
-				if (invNumber == -1)
-				{
-					Debug.Log ("Previously chosen item no longer exists!");
-					invNumber = 0;
-					invID = 0;
-				}
-				
-				invNumber = EditorGUILayout.Popup ("Inventory item:", invNumber, labelList.ToArray());
-				invID = inventoryManager.items[invNumber].id;
-		
-				giveToPlayer = EditorGUILayout.Toggle ("Give to player if not held?", giveToPlayer);
-				
-				AfterRunningOption ();
-			}
-	
-			else
-			{
-				EditorGUILayout.LabelField ("No inventory items exist!");
-				invID = -1;
-				invNumber = -1;
-			}
-		}
-	}
-	
-	
-	override public string SetLabel ()
-	{
-		string labelAdd = "";
-		string labelItem = "";
-		
-		if (inventoryManager)
-		{
-			if (inventoryManager.items.Count > 0)
-			{
-				if (invNumber > -1)
-				{
-					labelItem = " " + inventoryManager.items[invNumber].label;
-				}
-			}
-		}
-		
-		labelAdd = " (" + labelItem + ")";
-	
-		return labelAdd;
-	}
+					if (invNumber == -1)
+					{
+						ACDebug.LogWarning ("Previously chosen item no longer exists!");
+						invNumber = 0;
+						invID = 0;
+					}
 
-	#endif
+					parameterID = Action.ChooseParameterGUI ("Inventory item:", parameters, parameterID, ParameterType.InventoryItem);
+					if (parameterID >= 0)
+					{
+						invNumber = Mathf.Min (invNumber, inventoryManager.items.Count-1);
+						invID = -1;
+					}
+					else
+					{
+						invNumber = EditorGUILayout.Popup ("Inventory item:", invNumber, labelList.ToArray());
+						invID = inventoryManager.items[invNumber].id;
+					}
+
+					giveToPlayer = EditorGUILayout.Toggle ("Add if not held?", giveToPlayer);
+
+					if (settingsManager && settingsManager.CanGiveItems ())
+					{
+						selectItemMode = (SelectItemMode) EditorGUILayout.EnumPopup ("Select item mode:", selectItemMode);
+					}
+
+				}
+				else
+				{
+					EditorGUILayout.HelpBox ("No inventory items exist!", MessageType.Info);
+					invID = -1;
+					invNumber = -1;
+				}
+			}
+			AfterRunningOption ();
+		}
+		
+		
+		override public string SetLabel ()
+		{
+			if (selectType == InventorySelectType.DeselectActive)
+			{
+				return " (Deselect active)";
+			}
+
+			string labelAdd = "";
+			string labelItem = "";
+			
+			if (inventoryManager)
+			{
+				labelItem = " " + inventoryManager.GetLabel (invID);
+			}
+			
+			labelAdd = " (" + labelItem + ")";
+		
+			return labelAdd;
+		}
+
+		#endif
+
+	}
 
 }

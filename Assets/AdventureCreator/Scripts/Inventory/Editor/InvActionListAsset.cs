@@ -2,14 +2,10 @@
 using UnityEditor;
 using System;
 
-public class InvActionListAsset
+namespace AC
 {
-	
-	[MenuItem ("Assets/Create/Adventure Creator/Inventory ActionList")]
-	
-	public static void CreateAsset ()
-	{
-		CustomAssetUtility.CreateAsset <InvActionList> ();
-	}
-	
+
+	public class InvActionListAsset
+	{}
+
 }

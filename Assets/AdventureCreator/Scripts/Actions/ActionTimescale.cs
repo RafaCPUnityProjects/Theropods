@@ -1,7 +1,7 @@
 /*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
  *	"ActionTimescale.cs"
  * 
@@ -12,47 +12,98 @@
 
 using UnityEngine;
 using System.Collections;
-using AC;
 
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
 
-[System.Serializable]
-public class ActionTimescale : Action
+namespace AC
 {
-	
-	public float timeScale;
-	
-	
-	public ActionTimescale ()
+
+	[System.Serializable]
+	public class ActionTimescale : Action
 	{
-		this.isDisplayed = true;
-		title = "Engine: Change timescale";
-	}
-	
-	
-	override public float Run ()
-	{
-		if (timeScale >= 0f)
+		
+		public float timeScale;
+		public bool useTimeCurve = false;
+		public AnimationCurve timeCurve;
+		
+		
+		public ActionTimescale ()
 		{
-			PlayerInput playerInput = GameObject.FindWithTag (Tags.gameEngine).GetComponent <PlayerInput>();
-			playerInput.timeScale = timeScale;
+			this.isDisplayed = true;
+			category = ActionCategory.Engine;
+			title = "Change timescale";
+			description = "Changes the timescale to a value between 0 and 1. This allows for slow-motion effects.";
 		}
 		
-		return 0f;
-	}
-	
-	
-	#if UNITY_EDITOR
-
-	override public void ShowGUI ()
-	{
-		timeScale = EditorGUILayout.Slider ("Timescale:", timeScale, 0f, 1f);
 		
-		AfterRunningOption ();
+		override public float Run ()
+		{
+			if (!isRunning)
+			{
+				isRunning = true;
+
+				if (useTimeCurve)
+				{
+					if (timeCurve != null)
+					{
+						KickStarter.playerInput.SetTimeCurve (timeCurve);
+						if (willWait)
+						{
+							return defaultPauseTime;
+						}
+					}
+				}
+				else if (timeScale > 0f)
+				{
+					KickStarter.playerInput.SetTimeScale (timeScale);
+				}
+				else
+				{
+					ACDebug.LogWarning ("Cannot set timescale to zero!");
+				}
+			}
+			else
+			{
+				if (KickStarter.playerInput.HasTimeCurve ())
+				{
+					return defaultPauseTime;
+				}
+				else
+				{
+					isRunning = false;
+				}
+			}
+			return 0f;
+		}
+
+		
+		#if UNITY_EDITOR
+
+		override public void ShowGUI ()
+		{
+			useTimeCurve = EditorGUILayout.Toggle ("Use time curve?", useTimeCurve);
+			if (useTimeCurve)
+			{
+				if (timeCurve == null)
+				{
+					timeCurve = AnimationCurve.Linear (0f, 0.1f, 1f, 1f);
+				}
+
+				timeCurve = EditorGUILayout.CurveField ("Time curve:", timeCurve);
+				willWait = EditorGUILayout.Toggle ("Wait until finish?", willWait);
+			}
+			else
+			{
+				timeScale = EditorGUILayout.Slider ("Timescale:", timeScale, 0f, 1f);
+			}
+			
+			AfterRunningOption ();
+		}
+		
+		#endif
+
 	}
-	
-	#endif
 
 }

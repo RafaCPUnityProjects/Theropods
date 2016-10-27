@@ -2,14 +2,17 @@
 using UnityEditor;
 using System;
 
-public class ManagerPackageAsset
+namespace AC
 {
-	
-	[MenuItem ("Assets/Create/Adventure Creator/Manager Package")]
-	
-	public static void CreateAsset ()
+
+	public class ManagerPackageAsset
 	{
-		CustomAssetUtility.CreateAsset <ManagerPackage> ();
+		[MenuItem ("Assets/Create/Adventure Creator/Manager Package")]
+		
+		public static void CreateAsset ()
+		{
+			CustomAssetUtility.CreateAsset <ManagerPackage> ("New ManagerPackage");
+		}
 	}
-	
+
 }

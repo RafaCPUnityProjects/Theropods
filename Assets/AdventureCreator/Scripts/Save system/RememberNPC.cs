@@ -1,7 +1,7 @@
 /*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
  *	"RememberNPC.cs"
  * 
@@ -12,257 +12,249 @@
 
 using UnityEngine;
 using System.Collections;
-using AC;
 
-public class RememberNPC : ConstantID
+namespace AC
 {
 
-	public AC_OnOff startState = AC_OnOff.On;
-
-	
-	public void Awake ()
+	/**
+	 * Attach this script to NPCs in the scene whose state you wish to save.
+	 */
+	[AddComponentMenu("Adventure Creator/Save system/Remember NPC")]
+	#if !(UNITY_4_6 || UNITY_4_7 || UNITY_5_0)
+	[HelpURL("http://www.adventurecreator.org/scripting-guide/class_a_c_1_1_remember_n_p_c.html")]
+	#endif
+	public class RememberNPC : Remember
 	{
-		SettingsManager settingsManager = AdvGame.GetReferences ().settingsManager;
+
+		/** Determines whether the object is on or off when the game starts */
+		public AC_OnOff startState = AC_OnOff.On;
+
+		private bool loadedData = false;
+
 		
-		if (settingsManager && GetComponent <RememberHotspot>() == null && GameIsPlaying ())
+		private void Awake ()
 		{
-			if (startState == AC_OnOff.On)
+			if (loadedData) return;
+
+			if (KickStarter.settingsManager && GetComponent <RememberHotspot>() == null && GameIsPlaying ())
 			{
-				this.gameObject.layer = LayerMask.NameToLayer (settingsManager.hotspotLayer);
+				if (startState == AC_OnOff.On)
+				{
+					this.gameObject.layer = LayerMask.NameToLayer (KickStarter.settingsManager.hotspotLayer);
+				}
+				else
+				{
+					this.gameObject.layer = LayerMask.NameToLayer (KickStarter.settingsManager.deactivatedLayer);
+				}
+			}
+		}
+
+
+		/**
+		 * <summary>Serialises appropriate GameObject values into a string.</summary>
+		 * <returns>The data, serialised as a string</returns>
+		 */
+		public override string SaveData ()
+		{
+			NPCData npcData = new NPCData();
+
+			npcData.objectID = constantID;
+			
+			if (gameObject.layer == LayerMask.NameToLayer (KickStarter.settingsManager.hotspotLayer))
+			{
+				npcData.isOn = true;
 			}
 			else
 			{
-				this.gameObject.layer = LayerMask.NameToLayer (settingsManager.deactivatedLayer);
-			}
-		}
-	}
-
-
-	public NPCData SaveData ()
-	{
-		NPCData npcData = new NPCData();
-		
-		npcData.objectID = constantID;
-		
-		if (gameObject.layer == LayerMask.NameToLayer (AdvGame.GetReferences ().settingsManager.hotspotLayer))
-		{
-			npcData.isOn = true;
-		}
-		else
-		{
-			npcData.isOn = false;
-		}
-		
-		npcData.LocX = transform.position.x;
-		npcData.LocY = transform.position.y;
-		npcData.LocZ = transform.position.z;
-		
-		npcData.RotX = transform.eulerAngles.x;
-		npcData.RotY = transform.eulerAngles.y;
-		npcData.RotZ = transform.eulerAngles.z;
-		
-		npcData.ScaleX = transform.localScale.x;
-		npcData.ScaleY = transform.localScale.y;
-		npcData.ScaleZ = transform.localScale.z;
-		
-		if (GetComponent <NPC>())
-		{
-			NPC npc = GetComponent <NPC>();
-
-			if (npc.animationEngine == AnimationEngine.Sprites2DToolkit || npc.animationEngine == AnimationEngine.SpritesUnity)
-			{
-				npcData.idleAnim = npc.idleAnimSprite;
-				npcData.walkAnim = npc.walkAnimSprite;
-				npcData.talkAnim = npc.talkAnimSprite;
-				npcData.runAnim = npc.runAnimSprite;
-			}
-			else if (npc.animationEngine == AnimationEngine.Legacy)
-			{
-				npcData.idleAnim = npc.GetStandardAnimClipName (AnimStandard.Idle);
-				npcData.walkAnim = npc.GetStandardAnimClipName (AnimStandard.Walk);
-				npcData.runAnim = npc.GetStandardAnimClipName (AnimStandard.Run);
-				npcData.talkAnim = npc.GetStandardAnimClipName (AnimStandard.Talk);
+				npcData.isOn = false;
 			}
 			
-			npcData.walkSpeed = npc.walkSpeedScale;
-			npcData.runSpeed = npc.runSpeedScale;
+			npcData.LocX = transform.position.x;
+			npcData.LocY = transform.position.y;
+			npcData.LocZ = transform.position.z;
 			
-			if (npc.GetPath ())
+			npcData.RotX = transform.eulerAngles.x;
+			npcData.RotY = transform.eulerAngles.y;
+			npcData.RotZ = transform.eulerAngles.z;
+			
+			npcData.ScaleX = transform.localScale.x;
+			npcData.ScaleY = transform.localScale.y;
+			npcData.ScaleZ = transform.localScale.z;
+			
+			if (GetComponent <NPC>())
 			{
-				npcData.targetNode = npc.GetTargetNode ();
-				npcData.prevNode = npc.GetPrevNode ();
-				npcData.isRunning = npc.isRunning;
-				
-				if (npc.GetPath () == GetComponent <Paths>())
-				{
-					npcData.pathData = Serializer.CreatePathData (GetComponent <Paths>());
-					npcData.pathID = 0;
-				}
-				else
-				{
-					if (npc.GetPath ().GetComponent <ConstantID>())
-					{
-						npcData.pathID = npc.GetPath ().GetComponent <ConstantID>().constantID;
-					}
-					else
-					{
-						Debug.LogWarning ("Want to save path data for " + name + " but path has no ID!");
-					}
-				}
+				NPC npc = GetComponent <NPC>();
+				npcData = npc.SaveData (npcData);
 			}
-	
-			if (npc.followTarget)
+			
+			return Serializer.SaveScriptData <NPCData> (npcData);
+		}
+		
+
+		/**
+		 * <summary>Deserialises a string of data, and restores the GameObject to its previous state.</summary>
+		 * <param name = "stringData">The data, serialised as a string</param>
+		 */
+		public override void LoadData (string stringData)
+		{
+			NPCData data = Serializer.LoadScriptData <NPCData> (stringData);
+			if (data == null)
 			{
-				if (!npc.followTargetIsPlayer)
-				{
-					if (npc.followTarget.GetComponent <ConstantID>())
-					{
-						npcData.followTargetID = npc.followTarget.GetComponent <ConstantID>().constantID;
-						npcData.followTargetIsPlayer = npc.followTargetIsPlayer;
-						npcData.followFrequency = npc.followFrequency;
-						npcData.followDistance = npc.followDistance;
-					}
-					else
-					{
-						Debug.LogWarning ("Want to save follow data for " + name + " but " + npc.followTarget.name + " has no ID!");
-					}
-				}
-				else
-				{
-					npcData.followTargetID = 0;
-					npcData.followTargetIsPlayer = npc.followTargetIsPlayer;
-					npcData.followFrequency = npc.followFrequency;
-					npcData.followDistance = npc.followDistance;
-				}
+				loadedData = false;
+				return;
+			}
+
+			if (data.isOn)
+			{
+				gameObject.layer = LayerMask.NameToLayer (KickStarter.settingsManager.hotspotLayer);
 			}
 			else
 			{
-				npcData.followTargetID = 0;
-				npcData.followTargetIsPlayer = false;
-				npcData.followFrequency = 0f;
-				npcData.followDistance = 0f;
+				gameObject.layer = LayerMask.NameToLayer (KickStarter.settingsManager.deactivatedLayer);
 			}
+			transform.position = new Vector3 (data.LocX, data.LocY, data.LocZ);
+			transform.eulerAngles = new Vector3 (data.RotX, data.RotY, data.RotZ);
+			transform.localScale = new Vector3 (data.ScaleX, data.ScaleY, data.ScaleZ);
+			
+			if (GetComponent <NPC>())
+			{
+				NPC npc = GetComponent <NPC>();
+				npc.SetRotation (transform.rotation);
+				npc.LoadData (data);
+			}
+
+			loadedData = true;
 		}
-		
-		return npcData;
+
 	}
 
 
-	public void LoadData (NPCData data)
+	/**
+	 * A data container used by the RememberNPC script.
+	 */
+	[System.Serializable]
+	public class NPCData : RememberData
 	{
-		if (data.isOn)
-		{
-			gameObject.layer = LayerMask.NameToLayer (AdvGame.GetReferences ().settingsManager.hotspotLayer);
-		}
-		else
-		{
-			gameObject.layer = LayerMask.NameToLayer (AdvGame.GetReferences ().settingsManager.deactivatedLayer);
-		}
-		
-		transform.position = new Vector3 (data.LocX, data.LocY, data.LocZ);
-		transform.eulerAngles = new Vector3 (data.RotX, data.RotY, data.RotZ);
-		transform.localScale = new Vector3 (data.ScaleX, data.ScaleY, data.ScaleZ);
-		
-		if (GetComponent <NPC>())
-		{
-			NPC npc = GetComponent <NPC>();
 
-			npc.EndPath ();
-			
-			if (npc.animationEngine == AnimationEngine.Sprites2DToolkit || npc.animationEngine == AnimationEngine.SpritesUnity)
-			{
-				npc.idleAnimSprite = data.idleAnim;
-				npc.walkAnimSprite = data.walkAnim;
-				npc.talkAnimSprite = data.talkAnim;
-				npc.runAnimSprite = data.runAnim;
-			}
-			else if (npc.animationEngine == AnimationEngine.Legacy)
-			{
-				npc.AssignStandardAnimClipFromResource (AnimStandard.Idle, data.idleAnim);
-				npc.AssignStandardAnimClipFromResource (AnimStandard.Walk, data.walkAnim);
-				npc.AssignStandardAnimClipFromResource (AnimStandard.Talk, data.talkAnim);
-				npc.AssignStandardAnimClipFromResource (AnimStandard.Run, data.runAnim);
-			}
-			
-			npc.walkSpeedScale = data.walkSpeed;
-			npc.runSpeedScale = data.runSpeed;
-		
-			AC.Char charToFollow = null;
-			if (data.followTargetID != 0)
-			{
-				RememberNPC followNPC = Serializer.returnComponent <RememberNPC> (data.followTargetID);
-				if (followNPC.GetComponent <AC.Char>())
-				{
-					charToFollow = followNPC.GetComponent <AC.Char>();
-				}
-			}
-			
-			npc.FollowAssign (charToFollow, data.followTargetIsPlayer, data.followFrequency, data.followDistance);
-			npc.Halt ();
-			
-			if (data.pathData != null && data.pathData != "" && GetComponent <Paths>())
-			{
-				Paths savedPath = GetComponent <Paths>();
-				savedPath = Serializer.RestorePathData (savedPath, data.pathData);
-				npc.SetPath (savedPath, data.targetNode, data.prevNode);
-				npc.isRunning = data.isRunning;
-			}
-			else if (data.pathID != 0)
-			{
-				Paths pathObject = Serializer.returnComponent <Paths> (data.pathID);
-				
-				if (pathObject != null)
-				{
-					npc.SetPath (pathObject, data.targetNode, data.prevNode);
-				}
-				else
-				{
-					Debug.LogWarning ("Trying to assign a path for NPC " + this.name + ", but the path was not found - was it deleted?");
-				}
-			}
-		}
+		/** True if the NPC is enabled */
+		public bool isOn;
+
+		/** The X position */
+		public float LocX;
+		/** The Y position */
+		public float LocY;
+		/** The Z position */
+		public float LocZ;
+
+		/** The X rotation */
+		public float RotX;
+		/** The Y rotation */
+		public float RotY;
+		/** The Z rotation */
+		public float RotZ;
+
+		/** The X scale */
+		public float ScaleX;
+		/** The Y scale */
+		public float ScaleY;
+		/** The Z scale */
+		public float ScaleZ;
+
+		/** The NPC's idle animation */
+		public string idleAnim;
+		/** The NPC's walk animation */
+		public string walkAnim;
+		/** The NPC's talk animation */
+		public string talkAnim;
+		/** The NPC's run animation */
+		public string runAnim;
+
+		/** A unique identifier for the NPC's walk sound AudioClip */
+		public string walkSound;
+		/** A unique identifier for the NPC's run sound AudioClip */
+		public string runSound;
+		/** A unique identifier for the NPC's portrait graphic */
+		public string portraitGraphic;
+
+		/** The NPC's walk speed */
+		public float walkSpeed;
+		/** The NPC's run speed */
+		public float runSpeed;
+
+		/** True if a sprite-based NPC is locked to face a particular direction */
+		public bool lockDirection;
+		/** The direction that a sprite-based NPC is facing */
+		public string spriteDirection;
+		/** True if a sprite-based NPC has its scale locked */
+		public bool lockScale;
+		/** The scale of a sprite-based NPC */
+		public float spriteScale;
+		/** True if a sprite-based NPC has its sorting locked */
+		public bool lockSorting;
+		/** The sorting order of a sprite-based NPC */
+		public int sortingOrder;
+		/** The sorting layer of a sprite-based NPC */
+		public string sortingLayer;
+
+		/** The Constant ID number of the NPC's current Path */
+		public int pathID;
+		/** The target node number of the NPC's current Path */
+		public int targetNode;
+		/** The previous node number of the NPC's current Path */
+		public int prevNode;
+		/** The positions of each node in a pathfinding-generated Path */
+		public string pathData;
+		/** True if the NPC is running */
+		public bool isRunning;
+		/** True if the NPC's current Path affects the Y position */
+		public bool pathAffectY;
+
+		/** The Constant ID number of the NPC's last-used Path */
+		public int lastPathID;
+		/** The target node number of the NPC's last-used Path */
+		public int lastTargetNode;
+		/** The previous node number of the NPC's last-used Path */
+		public int lastPrevNode;
+
+		/** The Constant ID number of the NPC's follow target */
+		public int followTargetID = 0;
+		/** True if the NPC is following the player */
+		public bool followTargetIsPlayer = false;
+		/** The frequency with which the NPC follows its target */
+		public float followFrequency = 0f;
+		/** The distance that the NPC keeps with when following its target */
+		public float followDistance = 0f;
+		/** The maximum distance that the NPC keeps when following its target */
+		public float followDistanceMax = 0f;
+		/** If True, the NPC will face their follow target when idle */
+		public bool followFaceWhenIdle = false;
+
+		/** True if the NPC's head is pointed towards a target */
+		public bool isHeadTurning = false;
+		/** The ConstantID number of the head target Transform */
+		public int headTargetID = 0;
+		/** The NPC's head target's X position (offset) */
+		public float headTargetX = 0f;
+		/** The NPC's head target's Y position (offset) */
+		public float headTargetY = 0f;
+		/** The NPC's head target's Z position (offset) */
+		public float headTargetZ = 0f;
+
+		/** True if the NPC has a FollowSortingMap component that follows the scene's default SortingMap */
+		public bool followSortingMap;
+		/** The ConstantID number of the SortingMap that the NPC's FollowSortingMap follows, if not the scene's default */
+		public int customSortingMapID = 0;
+
+		/** The NPC's display name */
+		public string speechLabel;
+		/** The ID number that references the NPC's name, as generated by the Speech Manager */
+		public int displayLineID;
+
+		/**
+		 * The default Constructor.
+		 */
+		public NPCData () { }
+
 	}
 
-}
-
-
-[System.Serializable]
-public class NPCData
-{
-	public int objectID;
-	
-	public bool isOn;
-	
-	public float LocX;
-	public float LocY;
-	public float LocZ;
-	
-	public float RotX;
-	public float RotY;
-	public float RotZ;
-	
-	public float ScaleX;
-	public float ScaleY;
-	public float ScaleZ;
-	
-	public string idleAnim;
-	public string walkAnim;
-	public string talkAnim;
-	public string runAnim;
-	
-	public float walkSpeed;
-	public float runSpeed;
-	
-	public int pathID;
-	public int targetNode;
-	public int prevNode;
-	public string pathData;
-	public bool isRunning;
-	
-	public int followTargetID = 0;
-	public bool followTargetIsPlayer = false;
-	public float followFrequency = 0f;
-	public float followDistance = 0f;
-	
-	public NPCData () { }
 }

@@ -1,7 +1,7 @@
 /*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
  *	"ActionTeleport.cs"
  * 
@@ -12,92 +12,211 @@
 
 using UnityEngine;
 using System.Collections;
-using AC;
+using System.Collections.Generic;
 
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
 
-[System.Serializable]
-public class ActionTeleport : Action
+namespace AC
 {
-	
-	public bool isPlayer;
-	public GameObject obToMove;
-	public Marker teleporter;
-	public bool copyRotation;
-	
-	
-	public ActionTeleport ()
+
+	[System.Serializable]
+	public class ActionTeleport : Action
 	{
-		this.isDisplayed = true;
-		title = "Object: Teleport";
-	}
-	
-	
-	override public float Run ()
-	{
-		if (isPlayer)
+
+		public int obToMoveParameterID = -1;
+		public int obToMoveID = 0;
+		public int markerParameterID = -1;
+		public int markerID = 0;
+
+		public PositionRelativeTo positionRelativeTo = PositionRelativeTo.Nothing;
+
+		public bool isPlayer;
+		public bool snapCamera;
+		public GameObject obToMove;
+		public Marker teleporter;
+		public bool copyRotation;
+		
+
+		public ActionTeleport ()
 		{
-			obToMove = GameObject.FindWithTag ("Player");
+			this.isDisplayed = true;
+			category = ActionCategory.Object;
+			title = "Teleport";
+			description = "Moves a GameObject to a Marker instantly. Can also copy the Marker's rotation. The final position can optionally be made relative to the active camera, or the player. For example, if the Marker's position is (0, 0, 1) and Positon relative to is set to Relative To Active Camera, then the object will be teleported in front of the camera.";
 		}
 		
-		if (teleporter && obToMove)
+		
+		override public void AssignValues (List<ActionParameter> parameters)
 		{
-			obToMove.transform.position = teleporter.transform.position;
-			
-			if (copyRotation)
+			obToMove = AssignFile (parameters, obToMoveParameterID, obToMoveID, obToMove);
+			teleporter = AssignFile <Marker> (parameters, markerParameterID, markerID, teleporter);
+
+			if (isPlayer && KickStarter.player)
 			{
+				obToMove = KickStarter.player.gameObject;
+			}
+		}
+		
+		
+		override public float Run ()
+		{
+			if (teleporter && obToMove)
+			{
+				Vector3 position = teleporter.transform.position;
+				Quaternion rotation = teleporter.transform.rotation;
+
+				if (positionRelativeTo == PositionRelativeTo.RelativeToActiveCamera)
+				{
+					Transform mainCam = KickStarter.mainCamera.transform;
+
+					float right = teleporter.transform.position.x;
+					float up = teleporter.transform.position.y;
+					float forward = teleporter.transform.position.z;
+
+					position = mainCam.position + (mainCam.forward * forward) + (mainCam.right * right) + (mainCam.up * up);
+					rotation.eulerAngles += mainCam.transform.rotation.eulerAngles;
+				}
+				else if (positionRelativeTo == PositionRelativeTo.RelativeToPlayer && !isPlayer)
+				{
+					if (KickStarter.player)
+					{
+						Transform playerTranform = KickStarter.player.transform;
+
+						float right = teleporter.transform.position.x;
+						float up = teleporter.transform.position.y;
+						float forward = teleporter.transform.position.z;
+						
+						position = playerTranform.position + (playerTranform.forward * forward) + (playerTranform.right * right) + (playerTranform.up * up);
+						rotation.eulerAngles += playerTranform.rotation.eulerAngles;
+					}
+				}
+
+				if (copyRotation)
+				{
+					obToMove.transform.rotation = rotation;
+
+					if (obToMove.GetComponent <Char>())
+					{
+						// Is a character, so set the lookDirection, otherwise will revert back to old rotation
+						obToMove.GetComponent <Char>().SetLookDirection (teleporter.transform.forward, true);
+						obToMove.GetComponent <Char>().Halt ();
+					}
+				}
+
 				if (obToMove.GetComponent <Char>())
 				{
-					// Is a character, so set the lookDirection, otherwise will revert back to old rotation
-					obToMove.GetComponent <Char>().SetLookDirection (teleporter.transform.forward, true);
-					obToMove.GetComponent <Char>().Halt ();
+					obToMove.GetComponent <Char>().Teleport (position);
 				}
+				else
+				{
+					obToMove.transform.position = position;
+				}
+
+				if (isPlayer && snapCamera)
+				{
+					if (KickStarter.mainCamera != null && KickStarter.mainCamera.attachedCamera != null && KickStarter.mainCamera.attachedCamera.targetIsPlayer)
+					{
+						KickStarter.mainCamera.attachedCamera.MoveCameraInstant ();
+					}
+				}
+			}
 			
-				obToMove.transform.rotation = teleporter.transform.rotation;
-			}
+			return 0f;
 		}
 		
-		return 0f;
-	}
-	
-	
-	#if UNITY_EDITOR
-	
-	override public void ShowGUI ()
-	{
-		isPlayer = EditorGUILayout.Toggle ("Is Player?", isPlayer);
-		if (!isPlayer)
+		
+		#if UNITY_EDITOR
+		
+		override public void ShowGUI (List<ActionParameter> parameters)
 		{
-			obToMove = (GameObject) EditorGUILayout.ObjectField ("Object to move:", obToMove, typeof(GameObject), true);
+			isPlayer = EditorGUILayout.Toggle ("Is Player?", isPlayer);
+			if (!isPlayer)
+			{
+				obToMoveParameterID = Action.ChooseParameterGUI ("Object to move:", parameters, obToMoveParameterID, ParameterType.GameObject);
+				if (obToMoveParameterID >= 0)
+				{
+					obToMoveID = 0;
+					obToMove = null;
+				}
+				else
+				{
+					obToMove = (GameObject) EditorGUILayout.ObjectField ("Object to move:", obToMove, typeof(GameObject), true);
+					
+					obToMoveID = FieldToID (obToMove, obToMoveID);
+					obToMove = IDToField (obToMove, obToMoveID, false);
+				}
+			}
+
+			markerParameterID = Action.ChooseParameterGUI ("Teleport to:", parameters, markerParameterID, ParameterType.GameObject);
+			if (markerParameterID >= 0)
+			{
+				markerID = 0;
+				teleporter = null;
+			}
+			else
+			{
+				teleporter = (Marker) EditorGUILayout.ObjectField ("Teleport to:", teleporter, typeof (Marker), true);
+				
+				markerID = FieldToID <Marker> (teleporter, markerID);
+				teleporter = IDToField <Marker> (teleporter, markerID, false);
+			}
+			
+			positionRelativeTo = (PositionRelativeTo) EditorGUILayout.EnumPopup ("Position relative to:", positionRelativeTo);
+			copyRotation = EditorGUILayout.Toggle ("Copy rotation?", copyRotation);
+
+			if (isPlayer)
+			{
+				snapCamera = EditorGUILayout.Toggle ("Teleport active camera too?", snapCamera);
+			}
+
+			AfterRunningOption ();
 		}
 
-		teleporter = (Marker) EditorGUILayout.ObjectField ("Teleport to:", teleporter, typeof (Marker), true);
-		copyRotation = EditorGUILayout.Toggle ("Copy rotation?", copyRotation);
-		
-		AfterRunningOption ();
-	}
 
-	
-	override public string SetLabel ()
-	{
-		string labelAdd = "";
-		
-		if (teleporter)
+		override public void AssignConstantIDs (bool saveScriptsToo)
 		{
-			if (obToMove)
+			if (saveScriptsToo && obToMove != null)
 			{
-				labelAdd = " (" + obToMove.name + " to " + teleporter.name + ")";
+				if (obToMove.GetComponent <NPC>())
+				{
+					AddSaveScript <RememberNPC> (obToMove);
+				}
+				else if (obToMove.GetComponent <Player>() == null && !isPlayer)
+				{
+					AddSaveScript <RememberTransform> (obToMove);
+				}
 			}
-			else if (isPlayer)
+
+			if (!isPlayer)
 			{
-				labelAdd = " (Player to " + teleporter.name + ")";
+				AssignConstantID (obToMove, obToMoveID, obToMoveParameterID);
 			}
+			AssignConstantID <Marker> (teleporter, markerID, markerParameterID);
 		}
 		
-		return labelAdd;
+		
+		override public string SetLabel ()
+		{
+			string labelAdd = "";
+			
+			if (teleporter)
+			{
+				if (obToMove)
+				{
+					labelAdd = " (" + obToMove.name + " to " + teleporter.name + ")";
+				}
+				else if (isPlayer)
+				{
+					labelAdd = " (Player to " + teleporter.name + ")";
+				}
+			}
+			
+			return labelAdd;
+		}
+		
+		#endif
 	}
 
-	#endif
 }

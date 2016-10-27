@@ -1,7 +1,7 @@
 /*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
  *	"RememberName.cs"
  * 
@@ -13,32 +13,63 @@
 using UnityEngine;
 using System.Collections;
 
-public class RememberName : ConstantID
+namespace AC
 {
 
-	public NameData SaveData ()
+	/**
+	 * This script is attached to GameObject in the scene whose change in name we wish to save.
+	 */
+	[AddComponentMenu("Adventure Creator/Save system/Remember Name")]
+	#if !(UNITY_4_6 || UNITY_4_7 || UNITY_5_0)
+	[HelpURL("http://www.adventurecreator.org/scripting-guide/class_a_c_1_1_remember_name.html")]
+	#endif
+	public class RememberName : Remember
 	{
-		NameData nameData = new NameData();
-		nameData.objectID = constantID;
-		nameData.newName = gameObject.name;
 
-		return (nameData);
+		/**
+		 * <summary>Serialises appropriate GameObject values into a string.</summary>
+		 * <returns>The data, serialised as a string</returns>
+		 */
+		public override string SaveData ()
+		{
+			NameData nameData = new NameData();
+			nameData.objectID = constantID;
+			nameData.newName = gameObject.name;
+
+			return Serializer.SaveScriptData <NameData> (nameData);
+		}
+
+
+		/**
+		 * <summary>Deserialises a string of data, and restores the GameObject to its previous state.</summary>
+		 * <param name = "stringData">The data, serialised as a string</param>
+		 */
+		public override void LoadData (string stringData)
+		{
+			NameData data = Serializer.LoadScriptData <NameData> (stringData);
+			if (data == null) return;
+
+			gameObject.name = data.newName;
+		}
+
 	}
-	
-	
-	public void LoadData (NameData data)
+
+
+	/**
+	 * A data container used by the RememberName script.
+	 */
+	[System.Serializable]
+	public class NameData : RememberData
 	{
-		gameObject.name = data.newName;
+
+		/** The GameObject's new name */
+		public string newName;
+
+		/**
+		 * The default Constructor.
+		 */
+		public NameData () { }
+
 	}
 
-}
-
-
-[System.Serializable]
-public class NameData
-{
-	public int objectID;
-	public string newName;
-	
-	public NameData () { }
 }

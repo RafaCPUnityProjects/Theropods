@@ -1,7 +1,7 @@
 ﻿/*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
  *	"InvInteraction.cs"
  * 
@@ -12,18 +12,32 @@
 using UnityEngine;
 using System.Collections;
 
-[System.Serializable]
-public class InvInteraction
+namespace AC
 {
 
-	public InvActionList actionList;
-	public CursorIcon icon;
-
-
-	public InvInteraction (CursorIcon _icon)
+	/**
+	 * A data container for inventory interactions.
+	 */
+	[System.Serializable]
+	public class InvInteraction
 	{
-		icon = _icon;
-		actionList = null;
+
+		/** The ActionList to run when the interaction is triggered */
+		public ActionListAsset actionList;
+		/** The icon, defined in CursorManager, associated with the interaction */
+		public CursorIcon icon;
+
+
+		/**
+		 * <summary>The default Constructor.</summary>
+		 * <param name = "_icon">The icon, defined in CursorManager, associated with the interaction</param>
+		 */
+		public InvInteraction (CursorIcon _icon)
+		{
+			icon = _icon;
+			actionList = null;
+		}
+
 	}
 
 }

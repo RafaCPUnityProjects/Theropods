@@ -1,7 +1,7 @@
 ﻿/*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
  *	"ActionPlayMaker.cs"
  * 
@@ -13,61 +13,130 @@
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
-using AC;
 
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
 
-[System.Serializable]
-public class ActionPlayMaker : Action
+namespace AC
 {
 
-	public GameObject linkedObject;
-	public string eventName;
-
-
-	public ActionPlayMaker ()
+	[System.Serializable]
+	public class ActionPlayMaker : Action
 	{
-		this.isDisplayed = true;
-		title = "Third-Party: PlayMaker";
-	}
+
+		public bool isPlayer;
+
+		public int constantID = 0;
+		public int parameterID = -1;
+		public GameObject linkedObject;
+
+		public string fsmName;
+		public int fsmNameParameterID = -1;
+		public string eventName;
+		public int eventNameParameterID = -1;
 
 
-	override public float Run ()
-	{
-		if (linkedObject != null && eventName != "")
+		public ActionPlayMaker ()
 		{
-			PlayMakerIntegration.CallEvent (linkedObject, eventName);
+			this.isDisplayed = true;
+			category = ActionCategory.ThirdParty;
+			title = "PlayMaker";
+			description = "Calls a specified Event within a PlayMaker FSM. Note that PlayMaker is a separate Unity Asset, and the 'PlayMakerIsPresent' preprocessor must be defined for this to work.";
 		}
 
-		return 0f;
-	}
-	
-	
-	#if UNITY_EDITOR
-	
-	override public void ShowGUI ()
-	{
-		if (PlayMakerIntegration.IsDefinePresent ())
+
+		override public void AssignValues (List<ActionParameter> parameters)
 		{
-			linkedObject = (GameObject) EditorGUILayout.ObjectField ("PlayMaker FSM:", linkedObject, typeof (GameObject), true);
-			eventName = EditorGUILayout.TextField ("Event to call:", eventName);
-		}
-		else
-		{
-			EditorGUILayout.HelpBox ("The 'PlayMakerIsPresent' preprocessor define must be declared in the\nPlayMakerIntegration.cs script. Please open it and follow instructions.", MessageType.Warning);
+			if (isPlayer)
+			{
+				linkedObject = GameObject.FindWithTag (Tags.player);
+			}
+			else
+			{
+				linkedObject = AssignFile (parameters, parameterID, constantID, linkedObject);
+			}
+
+			fsmName = AssignString (parameters, fsmNameParameterID, fsmName);
+			eventName = AssignString (parameters, eventNameParameterID, eventName);
 		}
 
-		AfterRunningOption ();
+
+		override public float Run ()
+		{
+			if (linkedObject != null && eventName != "")
+			{
+				if (fsmName != "")
+				{
+					PlayMakerIntegration.CallEvent (linkedObject, eventName, fsmName);
+				}
+				else
+				{
+					PlayMakerIntegration.CallEvent (linkedObject, eventName);
+				}
+			}
+
+			return 0f;
+		}
+		
+		
+		#if UNITY_EDITOR
+		
+		override public void ShowGUI (List<ActionParameter> parameters)
+		{
+			if (PlayMakerIntegration.IsDefinePresent ())
+			{
+				isPlayer = EditorGUILayout.Toggle ("Use Player's FSM?", isPlayer);
+				if (!isPlayer)
+				{
+					parameterID = Action.ChooseParameterGUI ("PlayMaker FSM:", parameters, parameterID, ParameterType.GameObject);
+					if (parameterID >= 0)
+					{
+						constantID = 0;
+						linkedObject = null;
+					}
+					else
+					{
+						linkedObject = (GameObject) EditorGUILayout.ObjectField ("PlayMaker FSM:", linkedObject, typeof (GameObject), true);
+						
+						constantID = FieldToID (linkedObject, constantID);
+						linkedObject = IDToField (linkedObject, constantID, false);
+					}
+				}
+
+				fsmNameParameterID = Action.ChooseParameterGUI ("FSM to call (optional):", parameters, fsmNameParameterID, ParameterType.String);
+				if (fsmNameParameterID < 0)
+				{
+					fsmName = EditorGUILayout.TextField ("FSM to call (optional):", fsmName);
+				}
+				eventNameParameterID = Action.ChooseParameterGUI ("Event to call (optional):", parameters, eventNameParameterID, ParameterType.String);
+				if (eventNameParameterID < 0)
+				{
+					eventName = EditorGUILayout.TextField ("Event to call:", eventName);
+				}
+			}
+			else
+			{
+				EditorGUILayout.HelpBox ("The 'PlayMakerIsPresent' Scripting Define Symbol must be listed in the\nPlayer Settings. Please set it from Edit -> Project Settings -> Player", MessageType.Warning);
+			}
+
+			AfterRunningOption ();
+		}
+
+
+		override public void AssignConstantIDs (bool saveScriptsToo)
+		{
+			AssignConstantID (linkedObject, constantID, parameterID);
+		}
+		
+		
+		public override string SetLabel ()
+		{
+			string labelAdd = "";
+			return labelAdd;
+		}
+		
+		#endif
 	}
-	
-	
-	public override string SetLabel ()
-	{
-		string labelAdd = "";
-		return labelAdd;
-	}
-	
-	#endif
+
 }

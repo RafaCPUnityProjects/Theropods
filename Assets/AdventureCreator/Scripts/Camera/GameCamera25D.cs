@@ -1,7 +1,7 @@
 ﻿/*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
  *	"GameCamera25D.cs"
  * 
@@ -16,78 +16,54 @@ using System.Collections;
 using UnityEditor;
 #endif
 
-public class GameCamera25D : _Camera
+namespace AC
 {
-	
-	public BackgroundImage backgroundImage;
-	
-	
-	private void Awake ()
+
+	/**
+	 * A fixed camera that allows for a BackgroundImage to be displayed underneath all scene objects.
+	 */
+	#if !(UNITY_4_6 || UNITY_4_7 || UNITY_5_0)
+	[HelpURL("http://www.adventurecreator.org/scripting-guide/class_a_c_1_1_game_camera25_d.html")]
+	#endif
+	public class GameCamera25D : _Camera
 	{
-		this.GetComponent<Camera>().enabled = false;
-	}
-	
-	
-	public void SetActiveBackground ()
-	{
-		if (backgroundImage)
+
+		/** The BackgroundImage to display underneath all scene objects. */
+		public BackgroundImage backgroundImage;
+		/** If True, then the MainCamera will copy its position when the Inspector is viewed */
+		public bool isActiveEditor = false;
+
+
+		/**
+		 * Enables the assigned backgroundImage, disables all other BackgroundImage objects, and ensures MainCamera can view it.
+		 */
+		public void SetActiveBackground ()
 		{
-			// Move background images onto correct layer
-			BackgroundImage[] backgroundImages = FindObjectsOfType (typeof (BackgroundImage)) as BackgroundImage[];
-			foreach (BackgroundImage image in backgroundImages)
+			if (backgroundImage)
 			{
-				if (image == backgroundImage)
+				// Move background images onto correct layer
+				BackgroundImage[] backgroundImages = FindObjectsOfType (typeof (BackgroundImage)) as BackgroundImage[];
+				foreach (BackgroundImage image in backgroundImages)
 				{
-					image.TurnOn ();
+					if (image == backgroundImage)
+					{
+						image.TurnOn ();
+					}
+					else
+					{
+						image.TurnOff ();
+					}
 				}
-				else
-				{
-					image.TurnOff ();
-				}
-			}
-			
-			// Turn BackgroundCamera on
-			if (GameObject.FindWithTag (Tags.backgroundCamera) && GameObject.FindWithTag (Tags.backgroundCamera).GetComponent <BackgroundCamera>())
-			{
-				BackgroundCamera backgroundCamera = GameObject.FindWithTag (Tags.backgroundCamera).GetComponent <BackgroundCamera>();
-				backgroundCamera.TurnOn ();
-			}
-			else
-			{
-				Debug.LogWarning ("No BackgroundCamera found - please use the Scene Manager to Organise Room Objects with 2.5D Camera Projection.");
-			}
-			
-			if (GameObject.FindWithTag (Tags.mainCamera) && GameObject.FindWithTag (Tags.mainCamera).GetComponent <Camera>())
-			{
-				MainCamera mainCamera = GameObject.FindWithTag (Tags.mainCamera).GetComponent <MainCamera>();
 				
 				// Set MainCamera's Clear Flags
-				mainCamera.PrepareForBackground ();
-			}
-			else
-			{
-				Debug.LogWarning ("No MainCamera found - please use the Scene Manager to Organise Room Objects.");
+				KickStarter.mainCamera.PrepareForBackground ();
 			}
 		}
-	}
-	
 
-	public void SnapCameraInEditor ()
-	{
-		if (GameObject.FindWithTag (Tags.mainCamera) && GameObject.FindWithTag (Tags.mainCamera).GetComponent <Camera>())
-		{
-			MainCamera mainCamera = GameObject.FindWithTag (Tags.mainCamera).GetComponent <MainCamera>();
 
-			mainCamera.transform.parent = this.transform;
-			mainCamera.transform.localPosition = Vector3.zero;
-			mainCamera.transform.localEulerAngles = Vector3.zero;
-			mainCamera.GetComponent <Camera>().orthographic = this.GetComponent <Camera>().orthographic;
-			mainCamera.GetComponent <Camera>().fieldOfView = this.GetComponent <Camera>().fieldOfView;
-			mainCamera.GetComponent <Camera>().farClipPlane = this.GetComponent <Camera>().farClipPlane;
-			mainCamera.GetComponent <Camera>().nearClipPlane = this.GetComponent <Camera>().nearClipPlane;
-			mainCamera.GetComponent <Camera>().orthographicSize = this.GetComponent <Camera>().orthographicSize;
-		}
+		new public void ResetTarget ()
+		{}
+
 	}
-	
+		
 }
-	

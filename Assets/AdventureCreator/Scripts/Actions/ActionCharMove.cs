@@ -1,7 +1,7 @@
 /*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
  *	"ActionCharMove.cs"
  * 
@@ -12,84 +12,132 @@
 
 using UnityEngine;
 using System.Collections;
-using AC;
+using System.Collections.Generic;
 
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
 
-[System.Serializable]
-public class ActionCharMove : Action
+namespace AC
 {
-	
-	public Paths movePath;
-	public bool isPlayer;
-	public Char charToMove;
-	public bool doTeleport;
-	public bool doStop;
-	
-	
-	public ActionCharMove ()
+
+	[System.Serializable]
+	public class ActionCharMove : Action
 	{
-		this.isDisplayed = true;
-		title = "Character: Move along path";
-	}
-	
-	
-	override public float Run ()
-	{
-		if (movePath && movePath.GetComponent <Char>())
+
+		public enum MovePathMethod { MoveOnNewPath, StopMoving, ResumeLastSetPath };
+		public MovePathMethod movePathMethod = MovePathMethod.MoveOnNewPath;
+
+		public int charToMoveParameterID = -1;
+		public int movePathParameterID = -1;
+
+		public int charToMoveID = 0;
+		public int movePathID = 0;
+
+		public bool stopInstantly;
+		public Paths movePath;
+		public bool isPlayer;
+		public Char charToMove;
+		public bool doTeleport;
+		public bool doStop;
+		
+		
+		public ActionCharMove ()
 		{
-			Debug.LogWarning ("Can't follow a Path attached to a Character!");
-			return 0f;
+			this.isDisplayed = true;
+			category = ActionCategory.Character;
+			title = "Move along path";
+			description = "Moves the Character along a pre-determined path. Will adhere to the speed setting selected in the relevant Paths object. Can also be used to stop a character from moving, or resume moving along a path if it was previously stopped.";
 		}
 
-		if (!isRunning)
+
+		public override void AssignValues (List<ActionParameter> parameters)
 		{
-			isRunning = true;
-			
+			charToMove = AssignFile <Char> (parameters, charToMoveParameterID, charToMoveID, charToMove);
+			movePath = AssignFile <Paths> (parameters, movePathParameterID, movePathID, movePath);
+
 			if (isPlayer)
 			{
-				charToMove = GameObject.FindWithTag (Tags.player).GetComponent <Player>();
+				charToMove = KickStarter.player;
 			}
-			
-			if (charToMove)
-			{
-				if (charToMove is NPC)
-				{
-					NPC npcToMove = (NPC) charToMove;
-					npcToMove.FollowReset ();
-				}
+		}
 
-				if (doStop)
+
+		private void UpgradeSelf ()
+		{
+			if (!doStop)
+			{
+				return;
+			}
+
+			doStop = false;
+			movePathMethod = MovePathMethod.StopMoving;
+			
+			if (Application.isPlaying)
+			{
+				ACDebug.Log ("'Character: Move along path' Action has been temporarily upgraded - - please view its Inspector when the game ends and save the scene.");
+			}
+			else
+			{
+				ACDebug.Log ("Upgraded 'Character: Move along path' Action, please save the scene.");
+			}
+		}
+
+
+		override public float Run ()
+		{
+			UpgradeSelf ();
+
+			if (movePath && movePath.GetComponent <Char>())
+			{
+				ACDebug.LogWarning ("Can't follow a Path attached to a Character!");
+				return 0f;
+			}
+
+			if (!isRunning)
+			{
+				isRunning = true;
+
+				if (charToMove)
 				{
-					charToMove.EndPath ();
-				}
-				else
-				{
-					if (doTeleport)
+					if (charToMove is NPC)
 					{
-						charToMove.transform.position = movePath.transform.position;
-						
-						// Set rotation if there is more than one node
-						if (movePath.nodes.Count > 1)
+						NPC npcToMove = (NPC) charToMove;
+						npcToMove.StopFollowing ();
+					}
+
+					if (movePathMethod == MovePathMethod.StopMoving)
+					{
+						charToMove.EndPath ();
+						if (charToMove is Player && KickStarter.playerInteraction.GetHotspotMovingTo () != null)
 						{
-							charToMove.SetLookDirection (movePath.nodes[1] - movePath.nodes[0], true);
+							KickStarter.playerInteraction.StopMovingToHotspot ();
+						}
+
+						if (stopInstantly)
+						{
+							charToMove.Halt ();
 						}
 					}
-					
-					if (movePath)
+					else if (movePathMethod == MovePathMethod.MoveOnNewPath)
 					{
-						if (isPlayer && movePath.pathType != AC_PathType.ForwardOnly)
+						if (movePath)
 						{
-							Debug.LogWarning ("Cannot move player along a non-forward only path, as this will create an indefinite cutscene.");
-						}
-						else
-						{
+							if (doTeleport)
+							{
+								charToMove.Teleport (movePath.transform.position);
+								
+								// Set rotation if there is more than one node
+								if (movePath.nodes.Count > 1)
+								{
+									charToMove.SetLookDirection (movePath.nodes[1] - movePath.nodes[0], true);
+								}
+							}
+							
 							if (willWait && movePath.pathType != AC_PathType.ForwardOnly)
 							{
 								willWait = false;
-								Debug.LogWarning ("Cannot pause while character moves along a non-forward only path, as this will create an indefinite cutscene.");
+								ACDebug.LogWarning ("Cannot pause while character moves along a non-forward only path, as this will create an indefinite cutscene.");
 							}
 							
 							charToMove.SetPath (movePath);
@@ -100,70 +148,185 @@ public class ActionCharMove : Action
 							}
 						}
 					}
+					else if (movePathMethod == MovePathMethod.ResumeLastSetPath)
+					{
+						charToMove.ResumeLastPath ();
+					}
 				}
-			}
 
-			return 0f;
-		}
-		else
-		{
-			if (charToMove.GetPath () != movePath)
-			{
-				isRunning = false;
 				return 0f;
 			}
 			else
 			{
-				return (defaultPauseTime);
+				if (charToMove.GetPath () != movePath)
+				{
+					isRunning = false;
+					return 0f;
+				}
+				else
+				{
+					return (defaultPauseTime);
+				}
 			}
 		}
-	}
 
-	
-	#if UNITY_EDITOR
 
-	override public void ShowGUI ()
-	{
-		isPlayer = EditorGUILayout.Toggle ("Is Player?", isPlayer);
-
-		if (!isPlayer)
+		override public void Skip ()
 		{
-			charToMove = (Char) EditorGUILayout.ObjectField ("Character to move:", charToMove, typeof(Char), true);
-		}
-
-		doStop = EditorGUILayout.Toggle ("Stop moving?", doStop);
-		if (!doStop)
-		{
-			movePath = (Paths) EditorGUILayout.ObjectField ("Path to follow:", movePath, typeof(Paths), true);
-			doTeleport = EditorGUILayout.Toggle ("Teleport to start?", doTeleport);
-			willWait = EditorGUILayout.Toggle ("Pause until finish?", willWait);
-
-			if (movePath != null && movePath.GetComponent <Char>())
+			if (charToMove)
 			{
-				EditorGUILayout.HelpBox ("Can't follow a Path attached to a Character!", MessageType.Warning);
+				if (charToMove is NPC)
+				{
+					NPC npcToMove = (NPC) charToMove;
+					npcToMove.StopFollowing ();
+				}
+				
+				if (doStop)
+				{
+					charToMove.EndPath ();
+				}
+				else if (movePath)
+				{
+					if (movePath.pathType == AC_PathType.ForwardOnly)
+					{
+						// Place at end
+						int i = movePath.nodes.Count-1;
+						charToMove.transform.position = movePath.nodes [i];
+						if (i>0)
+						{
+							charToMove.SetLookDirection (movePath.nodes[i] - movePath.nodes[i-1], true);
+						}
+						return;
+					}
+
+					if (doTeleport)
+					{
+						charToMove.transform.position = movePath.transform.position;
+						
+						// Set rotation if there is more than one node
+						if (movePath.nodes.Count > 1)
+						{
+							charToMove.SetLookDirection (movePath.nodes[1] - movePath.nodes[0], true);
+						}
+					}
+
+					if (!isPlayer)
+					{
+						charToMove.SetPath (movePath);
+					}
+				}
 			}
 		}
-		
-		AfterRunningOption ();
-	}
-	
-	
-	override public string SetLabel ()
-	{
-		string labelAdd = "";
-		
-		if (charToMove && movePath)
+
+
+		#if UNITY_EDITOR
+
+		override public void ShowGUI (List<ActionParameter> parameters)
 		{
-			labelAdd = " (" + charToMove.name + " to " + movePath.name + ")";
+			UpgradeSelf ();
+
+			isPlayer = EditorGUILayout.Toggle ("Is Player?", isPlayer);
+
+			if (!isPlayer)
+			{
+				charToMoveParameterID = Action.ChooseParameterGUI ("Character to move:", parameters, charToMoveParameterID, ParameterType.GameObject);
+				if (charToMoveParameterID >= 0)
+				{
+					charToMoveID = 0;
+					charToMove = null;
+				}
+				else
+				{
+					charToMove = (Char) EditorGUILayout.ObjectField ("Character to move:", charToMove, typeof (Char), true);
+					
+					charToMoveID = FieldToID <Char> (charToMove, charToMoveID);
+					charToMove = IDToField <Char> (charToMove, charToMoveID, false);
+				}
+			}
+
+			movePathMethod = (MovePathMethod) EditorGUILayout.EnumPopup ("Method:", movePathMethod);
+			if (movePathMethod == MovePathMethod.MoveOnNewPath)
+			{
+				movePathParameterID = Action.ChooseParameterGUI ("Path to follow:", parameters, movePathParameterID, ParameterType.GameObject);
+				if (movePathParameterID >= 0)
+				{
+					movePathID = 0;
+					movePath = null;
+				}
+				else
+				{
+					movePath = (Paths) EditorGUILayout.ObjectField ("Path to follow:", movePath, typeof(Paths), true);
+					
+					movePathID = FieldToID <Paths> (movePath, movePathID);
+					movePath = IDToField <Paths> (movePath, movePathID, false);
+				}
+
+				doTeleport = EditorGUILayout.Toggle ("Teleport to start?", doTeleport);
+				if (movePath != null && movePath.pathType != AC_PathType.ForwardOnly)
+				{
+					willWait = false;
+				}
+				else
+				{
+					willWait = EditorGUILayout.Toggle ("Wait until finish?", willWait);
+				}
+
+				if (movePath != null && movePath.GetComponent <Char>())
+				{
+					EditorGUILayout.HelpBox ("Can't follow a Path attached to a Character!", MessageType.Warning);
+				}
+			}
+			else if (movePathMethod == MovePathMethod.StopMoving)
+			{
+				stopInstantly = EditorGUILayout.Toggle ("Stop instantly?", stopInstantly);
+			}
+			else if (movePathMethod == MovePathMethod.ResumeLastSetPath)
+			{
+				//
+			}
+			
+			AfterRunningOption ();
 		}
-		else if (isPlayer && movePath)
+
+
+		override public void AssignConstantIDs (bool saveScriptsToo)
 		{
-			labelAdd = " (Player to " + movePath.name + ")";
+			if (saveScriptsToo)
+			{
+				AddSaveScript <ConstantID> (movePath);
+				if (!isPlayer && charToMove != null && charToMove.GetComponent <NPC>())
+				{
+					AddSaveScript <RememberNPC> (charToMove);
+				}
+			}
+
+			if (!isPlayer)
+			{
+				AssignConstantID <Char> (charToMove, charToMoveID, charToMoveParameterID);
+			}
+			AssignConstantID <Paths> (movePath, movePathID, movePathParameterID);
 		}
+
 		
-		return labelAdd;
+		
+		override public string SetLabel ()
+		{
+			string labelAdd = "";
+			
+			if (charToMove && movePath)
+			{
+				labelAdd = " (" + charToMove.name + " to " + movePath.name + ")";
+			}
+			else if (isPlayer && movePath)
+			{
+				labelAdd = " (Player to " + movePath.name + ")";
+			}
+			
+			return labelAdd;
+		}
+
+		#endif
+		
 	}
 
-	#endif
-	
 }

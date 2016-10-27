@@ -1,7 +1,7 @@
 ﻿/*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
  *	"ActionCameraShake.cs"
  * 
@@ -12,102 +12,141 @@
 
 using UnityEngine;
 using System.Collections;
-using AC;
+using System.Collections.Generic;
 
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
 
-[System.Serializable]
-public class ActionCameraShake : Action
+namespace AC
 {
-	
-	public int shakeIntensity;
-	
-	
-	public ActionCameraShake ()
+
+	[System.Serializable]
+	public class ActionCameraShake : Action
 	{
-		this.isDisplayed = true;
-		title = "Camera: Shake";
-	}
-	
-	
-	override public float Run ()
-	{
-		MainCamera mainCam = GameObject.FindWithTag (Tags.mainCamera).GetComponent <MainCamera>();
 		
-		if (mainCam)
+		public int shakeIntensity;
+		public int shakeIntensityParameterID = -1;
+		public float duration = 1f;
+		public int durationParameterID = -1;
+		
+		
+		public ActionCameraShake ()
 		{
-			if (!isRunning)
+			this.isDisplayed = true;
+			category = ActionCategory.Camera;
+			title = "Shake";
+			description = "Causes the camera to shake, giving an earthquake screen effect. The method of shaking, i.e. moving or rotating, depends on the type of camera the Main Camera is linked to.";
+		}
+
+
+		override public void AssignValues (List<ActionParameter> parameters)
+		{
+			shakeIntensity = AssignInteger (parameters, shakeIntensityParameterID, shakeIntensity);
+			duration = AssignFloat (parameters, durationParameterID, duration);
+			if (duration < 0f)
 			{
-				isRunning = true;
-				
-				if (mainCam.attachedCamera is GameCamera)
+				duration = 0f;
+			}
+		}
+		
+		
+		override public float Run ()
+		{
+			MainCamera mainCam = KickStarter.mainCamera;
+			if (mainCam)
+			{
+				if (!isRunning)
 				{
-					mainCam.Shake ((float) shakeIntensity / 10000f, true);
-				}
-				
-				else if (mainCam.attachedCamera is GameCamera25D)
-				{
-					mainCam.Shake ((float) shakeIntensity / 10000f, true);
+					isRunning = true;
 					
-					GameCamera25D gameCamera = (GameCamera25D) mainCam.attachedCamera;
-					if (gameCamera.backgroundImage)
+					DoShake (mainCam, (float) shakeIntensity, duration);
+						
+					if (willWait)
 					{
-						gameCamera.backgroundImage.Shake (shakeIntensity / 100f);
+						return (duration);
 					}
 				}
-				
-				else if (mainCam.attachedCamera is GameCamera2D)
-				{
-					mainCam.Shake ((float) shakeIntensity / 5000f, false);
-				}
-				
 				else
-				{
-					mainCam.Shake ((float) shakeIntensity / 10000f, false);
-				}
-					
-				if (willWait)
-				{
-					return (defaultPauseTime);
-				}
-			}
-			else
-			{
-				if (!mainCam.IsShaking ())
 				{
 					isRunning = false;
 					return 0f;
 				}
-				else
-				{
-					return (defaultPauseTime);
-				}
+			}
+			
+			return 0f;
+		}
+
+
+		override public void Skip ()
+		{
+			MainCamera mainCam = KickStarter.mainCamera;
+			if (mainCam)
+			{
+				DoShake (mainCam, 0f, 0f);
 			}
 		}
+
+
+		private void DoShake (MainCamera mainCam, float _intensity, float _duration)
+		{
+			if (mainCam.attachedCamera is GameCamera)
+			{
+				mainCam.Shake (_intensity / 67f, _duration, true);
+			}
+			
+			else if (mainCam.attachedCamera is GameCamera25D)
+			{
+				mainCam.Shake (_intensity / 67f, _duration, true);
+				
+				GameCamera25D gameCamera = (GameCamera25D) mainCam.attachedCamera;
+				if (gameCamera.backgroundImage)
+				{
+					gameCamera.backgroundImage.Shake (_intensity / 0.67f, _duration);
+				}
+			}
+			
+			else if (mainCam.attachedCamera is GameCamera2D)
+			{
+				mainCam.Shake (_intensity / 33f, _duration, false);
+			}
+			
+			else
+			{
+				mainCam.Shake (_intensity / 67f, _duration, false);
+			}
+		}
+
 		
-		return 0f;
+		#if UNITY_EDITOR
 
-	}
+		override public void ShowGUI (List<ActionParameter> parameters)
+		{
+			shakeIntensityParameterID = Action.ChooseParameterGUI ("Intensity:", parameters, shakeIntensityParameterID, ParameterType.Integer);
+			if (shakeIntensityParameterID < 0)
+			{
+				shakeIntensity = EditorGUILayout.IntField ("Intensity:", shakeIntensity);
+			}
 
-	
-	#if UNITY_EDITOR
+			durationParameterID = Action.ChooseParameterGUI ("Duration (s):", parameters, durationParameterID, ParameterType.Float);
+			if (durationParameterID < 0)
+			{
+				duration = EditorGUILayout.FloatField ("Duration (s):", duration);
+			}
 
-	override public void ShowGUI ()
-	{
-		shakeIntensity = EditorGUILayout.IntSlider ("Intensity:", shakeIntensity, 1, 10);
-		willWait = EditorGUILayout.Toggle ("Pause until finish?", willWait);
+			willWait = EditorGUILayout.Toggle ("Wait until finish?", willWait);
+			
+			AfterRunningOption ();
+		}
 		
-		AfterRunningOption ();
-	}
-	
-	
-	override public string SetLabel ()
-	{
-		return "";
+		
+		override public string SetLabel ()
+		{
+			return "";
+		}
+
+		#endif
+		
 	}
 
-	#endif
-	
 }
