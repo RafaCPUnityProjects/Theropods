@@ -1,80 +1,114 @@
 /*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
  *	"PlayerStart.cs"
  * 
  *	This script defines a possible starting position for the
  *	player when the scene loads, based on what the previous
  *	scene was.  If no appropriate PlayerStart is found, the
- *	one define in StartSettings is used as the default.
+ *	one define in SceneSettings is used as the default.
  * 
  */
 
 using UnityEngine;
 using System.Collections;
-using AC;
 
-public class PlayerStart : Marker
+namespace AC
 {
-	
-	public bool fadeInOnStart;
-	public float fadeSpeed = 0.5f;
-	public int previousScene;
-	public _Camera cameraOnStart;
-	
-	private GameObject playerOb;
 
-	
-	public void SetPlayerStart ()
+	/**
+	 * Defines a possible starting position for the Player when the scene loads, based on what the previous scene was
+	 * If no appropriate PlayerStart is found, then the defaultPlayerStart defined in SceneSettings will be used instead.
+	 */
+	#if !(UNITY_4_6 || UNITY_4_7 || UNITY_5_0)
+	[HelpURL("http://www.adventurecreator.org/scripting-guide/class_a_c_1_1_player_start.html")]
+	#endif
+	public class PlayerStart : Marker
 	{
-		if (GameObject.FindWithTag (Tags.mainCamera) && GameObject.FindWithTag (Tags.mainCamera).GetComponent <MainCamera>())
+
+		/** The way in which the previous scene is identified by (Number, Name) */
+		public ChooseSceneBy chooseSceneBy = ChooseSceneBy.Number;
+		/** The number of the previous scene to check for */
+		public int previousScene;
+		/** The name of the previous scene to check for */
+		public string previousSceneName;
+		/** If True, then the MainCamera will fade in when the Player starts the scene from this point */
+		public bool fadeInOnStart;
+		/** The speed of the fade, if the MainCamera fades in when the Player starts the scene from this point */
+		public float fadeSpeed = 0.5f;
+		/** The _Camera that should be made active when the Player starts the scene from this point */
+		public _Camera cameraOnStart;
+		
+		private GameObject playerOb;
+
+
+		/**
+		 * Places the Player at the GameObject's position, and activates the assigned cameraOnStart.
+		 */
+		public void SetPlayerStart ()
 		{
-			MainCamera mainCam = GameObject.FindWithTag (Tags.mainCamera).GetComponent <MainCamera>();
-			
-			if (mainCam && fadeInOnStart)
+			if (KickStarter.mainCamera)
 			{
-				mainCam.FadeIn (fadeSpeed);
-			}
-			
-			if (AdvGame.GetReferences () && AdvGame.GetReferences ().settingsManager)
-			{
-				SettingsManager settingsManager = AdvGame.GetReferences ().settingsManager;
-
-				playerOb = GameObject.FindWithTag (Tags.player);
-				
-				if (playerOb)
+				if (fadeInOnStart)
 				{
-					playerOb.transform.position = this.transform.position;
-					playerOb.transform.rotation = this.transform.rotation;
-
-					if (settingsManager.ActInScreenSpace ())
+					KickStarter.mainCamera.FadeIn (fadeSpeed);
+				}
+				
+				if (KickStarter.settingsManager)
+				{
+					if (KickStarter.player)
 					{
-						playerOb.transform.position = AdvGame.GetScreenNavMesh (playerOb.transform.position);
+						KickStarter.player.Teleport (KickStarter.sceneChanger.GetStartPosition (this.transform.position));
+						KickStarter.player.SetLookDirection (this.transform.forward, true);
+
+						if (KickStarter.settingsManager.ActInScreenSpace () && !KickStarter.settingsManager.IsUnity2D ())
+						{
+							KickStarter.player.transform.position = AdvGame.GetScreenNavMesh (KickStarter.player.transform.position);
+						}
 					}
-				}
-			
-				if (settingsManager.movementMethod == MovementMethod.FirstPerson)
-				{
-					mainCam.SetFirstPerson ();
-				}
 				
-				else if (cameraOnStart && mainCam)
-				{
-					mainCam.SetGameCamera (cameraOnStart);
-					mainCam.lastNavCamera = cameraOnStart;
-					cameraOnStart.MoveCameraInstant ();
-					mainCam.SetGameCamera (cameraOnStart);
-					mainCam.SnapToAttached ();
-				}
-				
-				else if (cameraOnStart == null)
-				{
-					Debug.LogWarning (this.name + " has no Camera On Start");
+					if (KickStarter.settingsManager.movementMethod == MovementMethod.FirstPerson)
+					{
+						KickStarter.mainCamera.SetFirstPerson ();
+					}
+					else if (cameraOnStart != null)
+					{
+						SetCameraOnStart ();
+					}
+					else
+					{
+						if (!KickStarter.settingsManager.IsInFirstPerson ())
+						{
+							ACDebug.LogWarning (this.name + " has no Camera On Start", this);
+
+							if (KickStarter.sceneSettings != null &&
+								this != KickStarter.sceneSettings.defaultPlayerStart)
+							{
+								KickStarter.sceneSettings.defaultPlayerStart.SetCameraOnStart ();
+							}
+						}
+					}
 				}
 			}
 		}
+
+
+		/**
+		 * Makes the assigned cameraOnStart the active _Camera.
+		 */
+		public void SetCameraOnStart ()
+		{
+			if (cameraOnStart != null)
+			{
+				KickStarter.mainCamera.SetGameCamera (cameraOnStart);
+				KickStarter.mainCamera.lastNavCamera = cameraOnStart;
+				cameraOnStart.MoveCameraInstant ();
+				KickStarter.mainCamera.SetGameCamera (cameraOnStart);
+			}
+		}
+		
 	}
-	
+
 }

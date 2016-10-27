@@ -1,7 +1,7 @@
 /*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
  *	"ActionPause.cs"
  * 
@@ -12,56 +12,74 @@
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
-using AC;
 
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
 
-[System.Serializable]
-public class ActionPause : Action
+namespace AC
 {
-	
-	public float timeToPause;
 
-	
-	public ActionPause ()
+	[System.Serializable]
+	public class ActionPause : Action
 	{
-		this.isDisplayed = true;
-		title = "Engine: Pause game";
-	}
-	
-	
-	override public float Run ()
-	{
-		if (!isRunning)
+
+		public int parameterID = -1;
+		public float timeToPause;
+
+		
+		public ActionPause ()
 		{
-			isRunning = true;
-			return timeToPause;
+			this.isDisplayed = true;
+			category = ActionCategory.Engine;
+			title = "Wait";
+			description = "Waits a set time before continuing.";
 		}
-		else
+
+
+		override public void AssignValues (List<ActionParameter> parameters)
 		{
-			isRunning = false;
-			return 0f;
+			timeToPause = AssignFloat (parameters, parameterID, timeToPause);
+			timeToPause = Mathf.Max (0f, timeToPause);
 		}
-	}
-	
-	
-	#if UNITY_EDITOR
 
-	override public void ShowGUI ()
-	{
-		timeToPause = EditorGUILayout.Slider ("Wait time (s):", timeToPause, 0, 10f);
-		AfterRunningOption ();
-	}
-	
+		
+		override public float Run ()
+		{
+			if (!isRunning)
+			{
+				isRunning = true;
+				return timeToPause;
+			}
+			else
+			{
+				isRunning = false;
+				return 0f;
+			}
+		}
 
-	public override string SetLabel ()
-	{
-		string labelAdd = " (" + timeToPause + "s)";
-		return labelAdd;
+
+		#if UNITY_EDITOR
+
+		override public void ShowGUI (List<ActionParameter> parameters)
+		{
+			parameterID = Action.ChooseParameterGUI ("Wait time (s):", parameters, parameterID, ParameterType.Float);
+			if (parameterID < 0)
+			{
+				timeToPause = EditorGUILayout.FloatField ("Wait time (s):", timeToPause);
+			}
+			AfterRunningOption ();
+		}
+		
+
+		public override string SetLabel ()
+		{
+			string labelAdd = " (" + timeToPause + "s)";
+			return labelAdd;
+		}
+
+		#endif
+		
 	}
 
-	#endif
-	
 }

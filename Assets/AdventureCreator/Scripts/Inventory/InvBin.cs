@@ -1,7 +1,7 @@
 ﻿/*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
  *	"InvBin.cs"
  * 
@@ -13,34 +13,41 @@
 using UnityEngine;
 using System.Collections;
 
-[System.Serializable]
-public class InvBin
+namespace AC
 {
 
-	public string label;
-	public int id;
-
-
-	public InvBin ()
+	/**
+	 * A data container for an inventory item category.
+	 */
+	[System.Serializable]
+	public class InvBin
 	{
-		label = "";
-		id = 0;
-	}
-	
-	
-	public InvBin (int[] idArray)
-	{
-		id = 0;
 
-		foreach (int _id in idArray)
+		/** The category's editor name */
+		public string label;
+		/** A unique identifier */
+		public int id;
+
+
+		/**
+		 * <summary>The default Constructor.</summary>
+		 * <param name = "idArray">An array of already-used ID numbers, so that a unique one can be generated</param>
+		 */
+		public InvBin (int[] idArray)
 		{
-			if (id == _id)
+			id = 0;
+
+			foreach (int _id in idArray)
 			{
-				id ++;
+				if (id == _id)
+				{
+					id ++;
+				}
 			}
+
+			label = "Category " + (id + 1).ToString ();
 		}
 
-		label = "Category " + (id + 1).ToString ();
 	}
 
 }

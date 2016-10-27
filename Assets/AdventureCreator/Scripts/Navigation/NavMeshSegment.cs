@@ -1,7 +1,7 @@
 ﻿/*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
  *	"NavMeshSegment.cs"
  * 
@@ -12,54 +12,37 @@
 
 using UnityEngine;
 using System.Collections;
-using AC;
 
-public class NavMeshSegment : MonoBehaviour
+namespace AC
 {
-	
-	private SceneSettings sceneSettings;
-	
-	
-	private void Awake ()
-	{
-		Hide ();
 
-		if (GameObject.FindWithTag (Tags.gameEngine) && GameObject.FindWithTag (Tags.gameEngine).GetComponent <SceneSettings>())
+	/**
+	 * Controls a navigation area used by Unity Navigation-based pathfinding method.
+	 */
+	#if !(UNITY_4_6 || UNITY_4_7 || UNITY_5_0)
+	[HelpURL("http://www.adventurecreator.org/scripting-guide/class_a_c_1_1_nav_mesh_segment.html")]
+	#endif
+	[AddComponentMenu("Adventure Creator/Navigation/NavMesh Segment")]
+	public class NavMeshSegment : NavMeshBase
+	{
+
+		private void Awake ()
 		{
-			sceneSettings = GameObject.FindWithTag (Tags.gameEngine).GetComponent <SceneSettings>();
-			if (sceneSettings.navigationMethod == AC_NavigationMethod.UnityNavigation)
+			BaseAwake ();
+
+			if (KickStarter.sceneSettings.navigationMethod == AC_NavigationMethod.UnityNavigation)
 			{
-				if (LayerMask.NameToLayer (AdvGame.GetReferences ().settingsManager.navMeshLayer) == -1)
+				if (LayerMask.NameToLayer (KickStarter.settingsManager.navMeshLayer) == -1)
 				{
-					Debug.LogWarning ("No 'NavMesh' layer exists - please define one in the Tags Manager.");
+					ACDebug.LogWarning ("No 'NavMesh' layer exists - please define one in the Tags Manager.");
 				}
 				else
 				{
-					gameObject.layer = LayerMask.NameToLayer (AdvGame.GetReferences ().settingsManager.navMeshLayer);
+					gameObject.layer = LayerMask.NameToLayer (KickStarter.settingsManager.navMeshLayer);
 				}
 			}
 		}
+
 	}
-	
-	
-	public void Hide ()
-	{
-		if (this.GetComponent <MeshRenderer>())
-		{
-			this.GetComponent <MeshRenderer>().enabled = false;
-		}
-	}
-	
-	
-	public void Show ()
-	{
-		if (this.GetComponent <MeshRenderer>() && this.GetComponent <MeshFilter>() && this.GetComponent <MeshCollider>() && this.GetComponent <MeshCollider>().sharedMesh)
-		{
-			this.GetComponent <MeshFilter>().mesh = this.GetComponent <MeshCollider>().sharedMesh;
-			this.GetComponent <MeshRenderer>().enabled = true;
-			this.GetComponent <MeshRenderer>().castShadows = false;
-			this.GetComponent <MeshRenderer>().receiveShadows = false;
-		}
-	}
-	
+
 }

@@ -1,7 +1,18 @@
 fileFormatVersion: 2
 guid: 604f5780c1f434801a21a7dc6c41289b
 TextureImporter:
-  fileIDToRecycleName: {}
+  fileIDToRecycleName:
+    21300000: BirdAnims1_0
+    21300002: BirdAnims1_1
+    21300004: BirdAnims1_2
+    21300006: BirdAnims1_3
+    21300008: BirdAnims1_4
+    21300010: BirdAnims1_5
+    21300012: BirdAnims1_6
+    21300014: BirdAnims1_7
+    21300016: BirdAnims1_8
+    21300018: BirdAnims1_9
+    21300020: BirdAnims1_10
   serializedVersion: 2
   mipmaps:
     mipMapMode: 0
@@ -15,13 +26,13 @@ TextureImporter:
   bumpmap:
     convertToNormalMap: 0
     externalNormalMap: 0
-    heightScale: 0.25
+    heightScale: .25
     normalMapFilter: 0
   isReadable: 0
   grayScaleToAlpha: 0
   generateCubemap: 0
   cubemapConvolution: 0
-  cubemapConvolutionSteps: 7
+  cubemapConvolutionSteps: 8
   cubemapConvolutionExponent: 1.5
   seamlessCubemap: 0
   textureFormat: -1
@@ -35,23 +46,19 @@ TextureImporter:
   lightmap: 0
   rGBM: 0
   compressionQuality: 50
-  allowsAlphaSplitting: 0
   spriteMode: 2
   spriteExtrude: 1
   spriteMeshType: 1
   alignment: 0
-  spritePivot: {x: 0.5, y: 0.5}
+  spritePivot: {x: .5, y: .5}
   spriteBorder: {x: 0, y: 0, z: 0, w: 0}
   spritePixelsToUnits: 100
   alphaIsTransparency: 1
-  spriteTessellationDetail: -1
   textureType: 8
   buildTargetSettings: []
   spriteSheet:
-    serializedVersion: 2
     sprites:
-    - serializedVersion: 2
-      name: BirdAnims1_0
+    - name: BirdAnims1_0
       rect:
         serializedVersion: 2
         x: 37
@@ -59,12 +66,9 @@ TextureImporter:
         width: 156
         height: 55
       alignment: 0
-      pivot: {x: 0.5, y: 0.5}
+      pivot: {x: .5, y: .5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      tessellationDetail: -1
-    - serializedVersion: 2
-      name: BirdAnims1_1
+    - name: BirdAnims1_1
       rect:
         serializedVersion: 2
         x: 238
@@ -72,12 +76,9 @@ TextureImporter:
         width: 154
         height: 58
       alignment: 0
-      pivot: {x: 0.5, y: 0.5}
+      pivot: {x: .5, y: .5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      tessellationDetail: -1
-    - serializedVersion: 2
-      name: BirdAnims1_2
+    - name: BirdAnims1_2
       rect:
         serializedVersion: 2
         x: 435
@@ -85,12 +86,9 @@ TextureImporter:
         width: 123
         height: 85
       alignment: 0
-      pivot: {x: 0.5, y: 0.5}
+      pivot: {x: .5, y: .5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      tessellationDetail: -1
-    - serializedVersion: 2
-      name: BirdAnims1_3
+    - name: BirdAnims1_3
       rect:
         serializedVersion: 2
         x: 595
@@ -98,12 +96,9 @@ TextureImporter:
         width: 96
         height: 85
       alignment: 0
-      pivot: {x: 0.5, y: 0.5}
+      pivot: {x: .5, y: .5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      tessellationDetail: -1
-    - serializedVersion: 2
-      name: BirdAnims1_4
+    - name: BirdAnims1_4
       rect:
         serializedVersion: 2
         x: 722
@@ -111,12 +106,9 @@ TextureImporter:
         width: 117
         height: 91
       alignment: 0
-      pivot: {x: 0.5, y: 0.5}
+      pivot: {x: .5, y: .5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      tessellationDetail: -1
-    - serializedVersion: 2
-      name: BirdAnims1_5
+    - name: BirdAnims1_5
       rect:
         serializedVersion: 2
         x: 19
@@ -124,12 +116,9 @@ TextureImporter:
         width: 117
         height: 91
       alignment: 0
-      pivot: {x: 0.5, y: 0.5}
+      pivot: {x: .5, y: .5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      tessellationDetail: -1
-    - serializedVersion: 2
-      name: BirdAnims1_6
+    - name: BirdAnims1_6
       rect:
         serializedVersion: 2
         x: 152
@@ -137,12 +126,9 @@ TextureImporter:
         width: 117
         height: 91
       alignment: 0
-      pivot: {x: 0.5, y: 0.5}
+      pivot: {x: .5, y: .5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      tessellationDetail: -1
-    - serializedVersion: 2
-      name: BirdAnims1_7
+    - name: BirdAnims1_7
       rect:
         serializedVersion: 2
         x: 288
@@ -150,12 +136,9 @@ TextureImporter:
         width: 113
         height: 76
       alignment: 0
-      pivot: {x: 0.5, y: 0.5}
+      pivot: {x: .5, y: .5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      tessellationDetail: -1
-    - serializedVersion: 2
-      name: BirdAnims1_8
+    - name: BirdAnims1_8
       rect:
         serializedVersion: 2
         x: 418
@@ -163,12 +146,9 @@ TextureImporter:
         width: 121
         height: 91
       alignment: 0
-      pivot: {x: 0.5, y: 0.5}
+      pivot: {x: .5, y: .5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      tessellationDetail: -1
-    - serializedVersion: 2
-      name: BirdAnims1_9
+    - name: BirdAnims1_9
       rect:
         serializedVersion: 2
         x: 574
@@ -176,12 +156,9 @@ TextureImporter:
         width: 124
         height: 73
       alignment: 0
-      pivot: {x: 0.5, y: 0.5}
+      pivot: {x: .5, y: .5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      tessellationDetail: -1
-    - serializedVersion: 2
-      name: BirdAnims1_10
+    - name: BirdAnims1_10
       rect:
         serializedVersion: 2
         x: 730
@@ -189,11 +166,8 @@ TextureImporter:
         width: 120
         height: 72
       alignment: 0
-      pivot: {x: 0.5, y: 0.5}
+      pivot: {x: .5, y: .5}
       border: {x: 0, y: 0, z: 0, w: 0}
-      outline: []
-      tessellationDetail: -1
-    outline: []
   spritePackingTag: 
   userData: 
   assetBundleName: 

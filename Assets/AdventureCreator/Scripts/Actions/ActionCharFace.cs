@@ -1,7 +1,7 @@
 /*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
  *	"ActionCharFace.cs"
  * 
@@ -11,171 +11,317 @@
 
 using UnityEngine;
 using System.Collections;
-using AC;
+using System.Collections.Generic;
 
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
 
-[System.Serializable]
-public class ActionCharFace : Action
+namespace AC
 {
-	
-	public bool isInstant;
-	public Char charToMove;
-	public GameObject faceObject;
-	public bool copyRotation;
-	public bool facePlayer;
-	
-	public bool isPlayer;
-	public bool lookUpDown;
 
-	public ActionCharFace ()
+	[System.Serializable]
+	public class ActionCharFace : Action
 	{
-		this.isDisplayed = true;
-		title = "Character: Face object";
-	}
-	
-	override public float Run ()
-	{
-		if (!isRunning)
+
+		public int charToMoveParameterID = -1;
+		public int faceObjectParameterID = -1;
+
+		public int charToMoveID = 0;
+		public int faceObjectID = 0;
+
+		public bool isInstant;
+		public Char charToMove;
+		public GameObject faceObject;
+		public bool copyRotation;
+		public bool facePlayer;
+		
+		public CharFaceType faceType = CharFaceType.Body;
+		public bool isPlayer;
+		public bool lookUpDown;
+		public bool stopLooking = false;
+
+
+		public ActionCharFace ()
 		{
-			isRunning = true;
-			
+			this.isDisplayed = true;
+			category = ActionCategory.Character;
+			title = "Face object";
+			description = "Makes a Character turn, either instantly or over time. Can turn to face another object, or copy that object's facing direction.";
+		}
+
+
+		public override void AssignValues (List<ActionParameter> parameters)
+		{
+			charToMove = AssignFile <Char> (parameters, charToMoveParameterID, charToMoveID, charToMove);
+			faceObject = AssignFile (parameters, faceObjectParameterID, faceObjectID, faceObject);
+
 			if (isPlayer)
 			{
-				charToMove = GameObject.FindWithTag (Tags.player).GetComponent <Player>();
+				charToMove = KickStarter.player;
 			}
-			else if (facePlayer)
+			else if (facePlayer && KickStarter.player)
 			{
-				faceObject = GameObject.FindWithTag (Tags.player);
+				faceObject = KickStarter.player.gameObject;
 			}
+		}
 
-			if (charToMove && faceObject)
+		
+		override public float Run ()
+		{
+			if (!isRunning)
 			{
-				FirstPersonCamera firstPersonCamera = null;
-				if (GameObject.FindWithTag (Tags.firstPersonCamera) && GameObject.FindWithTag (Tags.firstPersonCamera).GetComponent <FirstPersonCamera>())
+				isRunning = true;
+			
+				if (faceObject == null && (faceType == CharFaceType.Body || (faceType == CharFaceType.Head && !stopLooking)))
 				{
-					firstPersonCamera = GameObject.FindWithTag (Tags.firstPersonCamera).GetComponent <FirstPersonCamera>();
-				}
-				
-				SettingsManager settingsManager = AdvGame.GetReferences ().settingsManager;
-
-				Vector3 lookVector = faceObject.transform.position - charToMove.transform.position;
-				if (copyRotation)
-				{
-					lookVector = faceObject.transform.forward;
-				}
-				else if (settingsManager.ActInScreenSpace ())
-				{
-					lookVector = AdvGame.GetScreenDirection (charToMove.transform.position, faceObject.transform.position);
-				}
-				lookVector.y = 0;
-				
-				if (settingsManager && settingsManager.movementMethod == MovementMethod.FirstPerson && lookUpDown)
-				{
-					if (firstPersonCamera)
-					{
-						firstPersonCamera.SetTilt (faceObject.transform.position, isInstant);
-					}
-					else
-					{
-						Debug.LogWarning ("Cannot tilt player, since no FirstPersonCamera script was found");
-					}
-				}
-				
-				if (isInstant)
-				{
-					charToMove.SetLookDirection (lookVector, true);
 					return 0f;
 				}
-				else
+
+				if (charToMove)
 				{
-					charToMove.Halt ();
-					charToMove.SetLookDirection (lookVector, false);
-					
-					if (willWait)
+					if (faceType == CharFaceType.Body)
 					{
-						return (defaultPauseTime);
+						if (!isInstant)
+						{
+							charToMove.EndPath ();
+						}
+
+						if (lookUpDown && isPlayer && KickStarter.settingsManager.IsInFirstPerson ())
+						{
+							Player player = (Player) charToMove;
+							player.SetTilt (faceObject.transform.position, isInstant);
+						}
+
+						charToMove.SetLookDirection (GetLookVector (KickStarter.settingsManager), isInstant);
 					}
-					else
+					else if (faceType == CharFaceType.Head)
+					{
+						if (stopLooking)
+						{
+							charToMove.ClearHeadTurnTarget (isInstant, HeadFacing.Manual);
+						}
+						else
+						{
+							Vector3 offset = Vector3.zero;
+							if (faceObject.GetComponent <Hotspot>())
+							{
+								offset = faceObject.GetComponent <Hotspot>().GetIconPosition (true);
+							}
+
+							charToMove.SetHeadTurnTarget (faceObject.transform, offset, isInstant);
+						}
+					}
+
+					if (isInstant)
 					{
 						return 0f;
 					}
+					else
+					{
+						if (willWait)
+						{
+							return (defaultPauseTime);
+						}
+						else
+						{
+							return 0f;
+						}
+					}
 				}
-			}
 
-			return 0f;
-		}
-		else
-		{
-			if (!charToMove.IsTurning ())
-			{
-				isRunning = false;
 				return 0f;
 			}
 			else
 			{
-				return (defaultPauseTime);
+				if (faceType == CharFaceType.Head && charToMove.IsMovingHead ())
+				{
+					return defaultPauseTime;
+				}
+				else if (faceType == CharFaceType.Body && charToMove.IsTurning ())
+				{
+					return defaultPauseTime;
+				}
+				else
+				{
+					isRunning = false;
+					return 0f;
+				}
 			}
 		}
-		
-	}
-	
-	
-	#if UNITY_EDITOR
 
-	override public void ShowGUI ()
-	{
-		isPlayer = EditorGUILayout.Toggle ("Affect Player?", isPlayer);
-		if (!isPlayer)
+
+		override public void Skip ()
 		{
-			charToMove = (Char) EditorGUILayout.ObjectField ("Character to turn:", charToMove, typeof(Char), true);
-			facePlayer = EditorGUILayout.Toggle ("Face player?", facePlayer);
-		}
-		else
-		{
-			facePlayer = false;
-			
-			SettingsManager settingsManager = AdvGame.GetReferences ().settingsManager;
-			if (settingsManager && settingsManager.movementMethod == MovementMethod.FirstPerson)
+			if (faceObject == null && (faceType == CharFaceType.Body || (faceType == CharFaceType.Head && !stopLooking)))
 			{
-				lookUpDown = EditorGUILayout.Toggle ("1st-person head tilt?", lookUpDown);
+				return;
+			}
+			
+			if (charToMove)
+			{
+				if (faceType == CharFaceType.Body)
+				{
+					charToMove.SetLookDirection (GetLookVector (KickStarter.settingsManager), true);
+					
+					if (lookUpDown && isPlayer && KickStarter.settingsManager.IsInFirstPerson ())
+					{
+						Player player = (Player) charToMove;
+						player.SetTilt (faceObject.transform.position, true);
+					}
+				}
+
+				else if (faceType == CharFaceType.Head)
+				{
+					if (stopLooking)
+					{
+						charToMove.ClearHeadTurnTarget (true, HeadFacing.Manual);
+					}
+					else
+					{
+						Vector3 offset = Vector3.zero;
+						if (faceObject.GetComponent <Hotspot>())
+						{
+							offset = faceObject.GetComponent <Hotspot>().GetIconPosition (true);
+						}
+
+						charToMove.SetHeadTurnTarget (faceObject.transform, offset, true);
+					}
+				}
 			}
 		}
+
+		
+		private Vector3 GetLookVector (SettingsManager settingsManager)
+		{
+			Vector3 lookVector = faceObject.transform.position - charToMove.transform.position;
+			if (copyRotation)
+			{
+				lookVector = faceObject.transform.forward;
+			}
+			else if (KickStarter.settingsManager.ActInScreenSpace ())
+			{
+				lookVector = AdvGame.GetScreenDirection (charToMove.transform.position, faceObject.transform.position);
+			}
+
+			return lookVector;
+		}
+
+
+		#if UNITY_EDITOR
+
+		override public void ShowGUI (List<ActionParameter> parameters)
+		{
+			isPlayer = EditorGUILayout.Toggle ("Affect Player?", isPlayer);
+			if (!isPlayer)
+			{
+				charToMoveParameterID = Action.ChooseParameterGUI ("Character to turn:", parameters, charToMoveParameterID, ParameterType.GameObject);
+				if (charToMoveParameterID >= 0)
+				{
+					charToMoveID = 0;
+					charToMove = null;
+				}
+				else
+				{
+					charToMove = (Char) EditorGUILayout.ObjectField ("Character to turn:", charToMove, typeof(Char), true);
+					
+					charToMoveID = FieldToID <Char> (charToMove, charToMoveID);
+					charToMove = IDToField <Char> (charToMove, charToMoveID, false);
+				}
+
+				facePlayer = EditorGUILayout.Toggle ("Face player?", facePlayer);
+			}
+			else
+			{
+				facePlayer = false;
+				
+				SettingsManager settingsManager = AdvGame.GetReferences ().settingsManager;
+				if (faceType == CharFaceType.Body && settingsManager && settingsManager.IsInFirstPerson ())
+				{
+					lookUpDown = EditorGUILayout.Toggle ("FPS head tilt?", lookUpDown);
+				}
+			}
+
+			faceType = (CharFaceType) EditorGUILayout.EnumPopup ("Face with:", faceType);
+			if (faceType == CharFaceType.Head)
+			{
+				stopLooking = EditorGUILayout.Toggle ("Stop looking?", stopLooking);
+			}
+
+			if (facePlayer || (faceType == CharFaceType.Head && stopLooking))
+			{ }
+			else
+			{
+				faceObjectParameterID = Action.ChooseParameterGUI ("Object to face:", parameters, faceObjectParameterID, ParameterType.GameObject);
+				if (faceObjectParameterID >= 0)
+				{
+					faceObjectID = 0;
+					faceObject = null;
+				}
+				else
+				{
+					faceObject = (GameObject) EditorGUILayout.ObjectField ("Object to face:", faceObject, typeof(GameObject), true);
+					
+					faceObjectID = FieldToID (faceObject, faceObjectID);
+					faceObject = IDToField (faceObject, faceObjectID, false);
+				}
+			}
+
+			if (faceType == CharFaceType.Body)
+			{
+				copyRotation = EditorGUILayout.Toggle ("Use object's rotation?", copyRotation);
+			}
+
+			isInstant = EditorGUILayout.Toggle ("Is instant?", isInstant);
+			if (!isInstant)
+			{
+				willWait = EditorGUILayout.Toggle ("Wait until finish?", willWait);
+			}
+
+			AfterRunningOption ();
+		}
+
+
+		override public void AssignConstantIDs (bool saveScriptsToo)
+		{
+			if (saveScriptsToo)
+			{
+				if (!isPlayer && charToMove != null && charToMove.GetComponent <NPC>())
+				{
+					AddSaveScript <RememberNPC> (charToMove);
+				}
+				if (faceType == CharFaceType.Head && faceObject != null)
+				{
+					AddSaveScript <ConstantID> (faceObject);
+				}
+			}
+
+			if (!isPlayer)
+			{
+				AssignConstantID <Char> (charToMove, charToMoveID, charToMoveParameterID);
+			}
+			AssignConstantID (faceObject, faceObjectID, faceObjectParameterID);
+		}
+
+		
+		override public string SetLabel ()
+		{
+			string labelAdd = "";
 			
-		if (!facePlayer)
-		{
-			faceObject = (GameObject) EditorGUILayout.ObjectField ("Object to face:", faceObject, typeof(GameObject), true);
+			if (charToMove && faceObject)
+			{
+				labelAdd = " (" + charToMove.name + " to " + faceObject.name + ")";
+			}
+			else if (isPlayer && faceObject)
+			{
+				labelAdd = " (Player to " + faceObject.name + ")";
+			}
+			
+			return labelAdd;
 		}
-		copyRotation = EditorGUILayout.Toggle ("Use object's rotation?", copyRotation);
 
-		isInstant = EditorGUILayout.Toggle ("Is instant?", isInstant);
-		if (!isInstant)
-		{
-			willWait = EditorGUILayout.Toggle ("Pause until finish?", willWait);
-		}
-
-		AfterRunningOption ();
+		#endif
+		
 	}
 
-	
-	override public string SetLabel ()
-	{
-		string labelAdd = "";
-		
-		if (charToMove && faceObject)
-		{
-			labelAdd = " (" + charToMove.name + " to " + faceObject.name + ")";
-		}
-		else if (isPlayer && faceObject)
-		{
-			labelAdd = " (Player to " + faceObject.name + ")";
-		}
-		
-		return labelAdd;
-	}
-
-	#endif
-	
 }

@@ -1,7 +1,7 @@
 ﻿	/*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
  *	"AnimEngine.cs"
  * 
@@ -20,96 +20,186 @@ using System.Collections.Generic;
 using UnityEditor;
 #endif
 
-[System.Serializable]
-public class AnimEngine : ScriptableObject
+namespace AC
 {
 
-	// Character variables
-	public AC.Char character;
-	public bool turningIsLinear = false;
-	public bool rootMotion = false;
-
-
-	public virtual void Declare (AC.Char _character)
+	/**
+	 * A base class for all Animation Engines. Subclasses of this script contain functions to perform standard character animations (e.g "Idle", "Walk", etc) and are called as appropriately by Player / NPC.
+	 * It also contains code that alter each of the various animation Actions (e.g. ActionAnim).
+	 * To create a new animation engine to control an NPC or Player, create a new subclass of this script and set the character's animationEngine to AnimationEngine.Custom. Then set the character's customAnimationClass string to match the name of the new subclass.
+	 */
+	[System.Serializable]
+	public class AnimEngine : ScriptableObject
 	{
-		character = _character;
-		turningIsLinear = false;
-		rootMotion = false;
-	}
 
-	public virtual void CharSettingsGUI ()
-	{ 
+		/** How character turning is handled (Linear, RootMotion, Script) */
+		public TurningStyle turningStyle = TurningStyle.Script;
+		/** If True, then the engine is sprite-based, and character's will rely on their spriteChild for animation */
+		public bool isSpriteBased = false;
+
+		protected AC.Char character;
+
+
+		/**
+		 * <summary>Initialises the engine.</summary>
+		 * <param name = "_character">The Player/NPC that this instance is controlling.</param>
+		 */
+		public virtual void Declare (AC.Char _character)
+		{
+			character = _character;
+			turningStyle = TurningStyle.Script;
+			isSpriteBased = false;
+		}
+
+		public virtual void CharSettingsGUI ()
+		{ 
+			#if UNITY_EDITOR
+			#endif
+		}
+
+		public virtual void ActionCharAnimGUI (ActionCharAnim action, List<ActionParameter> parameters = null)
+		{
+			#if UNITY_EDITOR
+			action.method = (ActionCharAnim.AnimMethodChar) EditorGUILayout.EnumPopup ("Method:", action.method);
+			#endif
+		}
+
+		public virtual float ActionCharAnimRun (ActionCharAnim action)
+		{
+			return 0f;
+		}
+
+		public virtual void ActionCharAnimSkip (ActionCharAnim action)
+		{
+			ActionCharAnimRun (action);
+		}
+		
+		public virtual bool ActionCharHoldPossible ()
+		{
+			return false;
+		}
+
+		public virtual void ActionSpeechGUI (ActionSpeech action, Char speaker)
+		{
+			#if UNITY_EDITOR
+			#endif
+		}
+		
+		public virtual void ActionSpeechRun (ActionSpeech action)
+		{ }
+
+		public virtual void ActionSpeechSkip (ActionSpeech action)
+		{
+			ActionSpeechRun (action);
+		}
+
+		public virtual void ActionAnimGUI (ActionAnim action, List<ActionParameter> parameters)
+		{
+			#if UNITY_EDITOR
+			#endif
+		}
+
+		public virtual string ActionAnimLabel (ActionAnim action)
+		{
+			return "";
+		}
+
+		public virtual void ActionAnimAssignValues (ActionAnim action, List<ActionParameter> parameters)
+		{ }
+		
+		public virtual float ActionAnimRun (ActionAnim action)
+		{
+			return 0f;
+		}
+
+		public virtual void ActionAnimSkip (ActionAnim action)
+		{
+			ActionAnimRun (action);
+		}
+
+		public virtual void ActionCharRenderGUI (ActionCharRender action)
+		{ }
+
+		public virtual float ActionCharRenderRun (ActionCharRender action)
+		{
+			return 0f;
+		}
+
+		/**
+		 * Plays the character's 'Idle' animation.
+		 */
+		public virtual void PlayIdle ()
+		{ }
+
+		/**
+		 * Plays the character's 'Walk' animation.
+		 */
+		public virtual void PlayWalk ()
+		{ }
+
+		/**
+		 * Plays the character's 'Run' animation.
+		 */
+		public virtual void PlayRun ()
+		{ }
+
+		/**
+		 * Plays the character's 'Talk' animation.
+		 */
+		public virtual void PlayTalk ()
+		{ }
+
+		/**
+		 * Called every frame to animate the character based on height change.
+		 * The character's height change can be found with GetHeightChange ().
+		 */
+		public virtual void PlayVertical ()
+		{ }
+
+		/**
+		 * Plays the character's 'Jump' animation.
+		 */
+		public virtual void PlayJump ()
+		{ 
+			PlayIdle ();
+		}
+
+		/**
+		 * Plays the character's 'Spot-turn left' animation.
+		 */
+		public virtual void PlayTurnLeft ()
+		{
+			PlayIdle ();
+		}
+
+		/**
+		 * Plays the character's 'Spot-turn right' animation.
+		 */
+		public virtual void PlayTurnRight ()
+		{
+			PlayIdle ();
+		}
+
+		/**
+		 * <summary>Rotates a character's head.</summary>
+		 * <param name = "angles">The new angles to rotate the head to</param>
+		 */
+		public virtual void TurnHead (Vector2 angles)
+		{ }
+
+
 		#if UNITY_EDITOR
+
+		/**
+		 * <summary>Adds any relevent Remember scripts onto a GameObject referenced by an animation-based Action.</summary>
+		 * <param name = "_action">The Action referencing the GameObject</param>
+		 * <param name = "_gameObject">The GameObject being referenced</param>
+		 */
+		public virtual void AddSaveScript (Action _action, GameObject _gameObject)
+		{ }
+
 		#endif
-	}
 
-	public virtual void ActionCharAnimGUI (ActionCharAnim action)
-	{
-		#if UNITY_EDITOR
-		action.method = (ActionCharAnim.AnimMethodChar) EditorGUILayout.EnumPopup ("Method:", action.method);
-		#endif
-	}
-
-	public virtual float ActionCharAnimRun (ActionCharAnim action)
-	{
-		return 0f;
-	}
-
-	public virtual void ActionCharHoldGUI (ActionCharHold action)
-	{
-		#if UNITY_EDITOR
-		EditorGUILayout.HelpBox ("This Action is not compatible with this Character's Animation Engine.", MessageType.Info);
-		#endif
-	}
-	
-	public virtual void ActionCharHoldRun (ActionCharHold action)
-	{ }
-
-	public virtual void ActionSpeechGUI (ActionSpeech action)
-	{
-		#if UNITY_EDITOR
-		#endif
-	}
-	
-	public virtual void ActionSpeechRun (ActionSpeech action)
-	{ }
-
-	public virtual void ActionAnimGUI (ActionAnim action)
-	{
-		#if UNITY_EDITOR
-		#endif
-	}
-
-	public virtual string ActionAnimLabel (ActionAnim action)
-	{
-		return "";
-	}
-
-	public virtual float ActionAnimRun (ActionAnim action)
-	{
-		return 0f;
-	}
-
-	public virtual void PlayIdle ()
-	{ }
-	
-	public virtual void PlayWalk ()
-	{ }
-
-	public virtual void PlayRun ()
-	{ }
-	
-	public virtual void PlayTalk ()
-	{ }
-
-	public virtual void PlayTurnLeft ()
-	{
-		PlayIdle ();
-	}
-	
-	public virtual void PlayTurnRight ()
-	{
-		PlayIdle ();
 	}
 
 }

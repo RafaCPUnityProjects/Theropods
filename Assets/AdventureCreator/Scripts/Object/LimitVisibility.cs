@@ -1,11 +1,11 @@
 ﻿/*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
  *	"LimitVisibility.cs"
  * 
- *	Attach this script to a GameObject to limit it's visibility
+ *	Attach this script to a GameObject to limit its visibility
  *	to a specific GameCamera in your scene.
  * 
  */
@@ -13,77 +13,116 @@
 using UnityEngine;
 using System.Collections;
 
-public class LimitVisibility : MonoBehaviour
+namespace AC
 {
 
-	public _Camera limitToCamera;
-	public bool affectChildren = false;
-
-	private _Camera activeCamera;
-	private MainCamera mainCamera;
-	private bool isVisible = false;
-
-
-	private void Start ()
+	/**
+	 * This component limits the visibility of a GameObject so that it can only be viewed through a specific _Camera.
+	 */
+	[AddComponentMenu("Adventure Creator/Camera/Limit visibility to camera")]
+	#if !(UNITY_4_6 || UNITY_4_7 || UNITY_5_0)
+	[HelpURL("http://www.adventurecreator.org/scripting-guide/class_a_c_1_1_limit_visibility.html")]
+	#endif
+	public class LimitVisibility : MonoBehaviour
 	{
-		mainCamera = GameObject.FindWithTag (Tags.mainCamera).GetComponent <MainCamera>();
 
-		if (mainCamera != null)
+		/** The _Camera to limit the GameObject's visibility to */
+		public _Camera limitToCamera;
+		/** If True, then child GameObjects will be affected in the same way */
+		public bool affectChildren = false;
+		/** If True, then the object will not be visible even if the correct _Camera is active */
+		[HideInInspector] public bool isLockedOff = false;
+
+		private _Camera activeCamera;
+		private bool isVisible = false;
+
+
+		private void Start ()
 		{
-			activeCamera = mainCamera.attachedCamera;
-			
-			if (activeCamera == limitToCamera)
+			activeCamera = KickStarter.mainCamera.attachedCamera;
+
+			if (!isLockedOff)
 			{
-				SetVisibility (true);
+				if (activeCamera == limitToCamera)
+				{
+					SetVisibility (true);
+				}
+				else if (activeCamera != limitToCamera)
+				{
+					SetVisibility (false);
+				}
 			}
-			else if (activeCamera != limitToCamera)
+			else
 			{
 				SetVisibility (false);
 			}
 		}
-	}
 
 
-	private void Update ()
-	{
-		if (mainCamera != null)
+		/**
+		 * Updates the visibility based on the attached camera. This is public so that it can be called by StateHandler.
+		 */
+		public void _Update ()
 		{
-			activeCamera = mainCamera.attachedCamera;
+			activeCamera = KickStarter.mainCamera.attachedCamera;
 
-			if (activeCamera == limitToCamera && !isVisible)
+			if (!isLockedOff)
 			{
-				SetVisibility (true);
+				if (activeCamera == limitToCamera && !isVisible)
+				{
+					SetVisibility (true);
+				}
+				else if (activeCamera != limitToCamera && isVisible)
+				{
+					SetVisibility (false);
+				}
 			}
-			else if (activeCamera != limitToCamera && isVisible)
+			else if (isVisible)
 			{
 				SetVisibility (false);
 			}
 		}
-	}
 
 
-	private void SetVisibility (bool state)
-	{
-		if (this.GetComponent<Renderer>())
+		private void SetVisibility (bool state)
 		{
-			this.GetComponent<Renderer>().enabled = state;
-		}
-		else if (this.gameObject.GetComponent <SpriteRenderer>())
-		{
-			this.gameObject.GetComponent <SpriteRenderer>().enabled = state;
-		}
-
-		if (affectChildren)
-		{
-			SpriteRenderer[] children;
-			children = GetComponentsInChildren <SpriteRenderer>();
-			foreach (SpriteRenderer child in children)
+			if (GetComponent <Renderer>())
 			{
-				child.enabled = state;
+				GetComponent <Renderer>().enabled = state;
 			}
+			else if (gameObject.GetComponent <SpriteRenderer>())
+			{
+				gameObject.GetComponent <SpriteRenderer>().enabled = state;
+			}
+			if (gameObject.GetComponent <GUITexture>())
+			{
+				gameObject.GetComponent <GUITexture>().enabled = state;
+			}
+
+			if (affectChildren)
+			{
+				Renderer[] _children = GetComponentsInChildren <Renderer>();
+				foreach (Renderer child in _children)
+				{
+					child.enabled = state;
+				}
+
+				SpriteRenderer[] spriteChildren = GetComponentsInChildren <SpriteRenderer>();
+				foreach (SpriteRenderer child in spriteChildren)
+				{
+					child.enabled = state;
+				}
+
+				GUITexture[] textureChildren = GetComponentsInChildren <GUITexture>();
+				foreach (GUITexture child in textureChildren)
+				{
+					child.enabled = state;
+				}
+			}
+
+			isVisible = state;
 		}
 
-		isVisible = state;
 	}
 
 }

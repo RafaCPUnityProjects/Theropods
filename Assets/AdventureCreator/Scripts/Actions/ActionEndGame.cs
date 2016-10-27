@@ -1,7 +1,7 @@
 ﻿/*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
  *	"ActionEndGame.cs"
  * 
@@ -13,91 +13,114 @@
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
-using AC;
 
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
 
-[System.Serializable]
-public class ActionEndGame : Action
+namespace AC
 {
-	
-	public enum AC_EndGameType { QuitGame, LoadAutosave, ResetScene, RestartGame };
-	public AC_EndGameType endGameType;
-	public int sceneNumber;
-	
-	
-	public ActionEndGame ()
+
+	[System.Serializable]
+	public class ActionEndGame : Action
 	{
-		this.isDisplayed = true;
-		title = "Engine: End game";
-	}
-	
-	
-	override public float Run ()
-	{
-		if (endGameType == AC_EndGameType.QuitGame)
+		
+		public enum AC_EndGameType { QuitGame, LoadAutosave, ResetScene, RestartGame };
+		public AC_EndGameType endGameType;
+		public ChooseSceneBy chooseSceneBy = ChooseSceneBy.Number;
+		public int sceneNumber;
+		public string sceneName;
+		
+		
+		public ActionEndGame ()
 		{
-			 #if UNITY_EDITOR
-				UnityEditor.EditorApplication.isPlaying = false;
-			#else
-				Application.Quit ();
-			#endif
+			this.isDisplayed = true;
+			category = ActionCategory.Engine;
+			title = "End game";
+			description = "Ends the current game, either by loading an autosave, restarting or quitting the game executable.";
+			numSockets = 0;
 		}
-		else if (endGameType == AC_EndGameType.LoadAutosave)
+		
+		
+		override public float Run ()
 		{
-			SaveSystem.LoadAutoSave ();
+			if (endGameType == AC_EndGameType.QuitGame)
+			{
+				#if UNITY_EDITOR
+					UnityEditor.EditorApplication.isPlaying = false;
+				#else
+					Application.Quit ();
+				#endif
+			}
+			else if (endGameType == AC_EndGameType.LoadAutosave)
+			{
+				SaveSystem.LoadAutoSave ();
+			}
+			else
+			{
+				KickStarter.runtimeInventory.SetNull ();
+				KickStarter.runtimeInventory.RemoveRecipes ();
+
+				DestroyImmediate (GameObject.FindWithTag (Tags.player));
+
+				if (endGameType == AC_EndGameType.RestartGame)
+				{
+					KickStarter.ResetPlayer (KickStarter.settingsManager.GetDefaultPlayer (), KickStarter.settingsManager.GetDefaultPlayerID (), false, Quaternion.identity);
+
+					KickStarter.saveSystem.ClearAllData ();
+					KickStarter.levelStorage.ClearAllLevelData ();
+					KickStarter.runtimeInventory.OnStart ();
+					KickStarter.runtimeVariables.OnStart ();
+
+					KickStarter.stateHandler.CanGlobalOnStart ();
+					KickStarter.sceneChanger.ChangeScene (new SceneInfo (chooseSceneBy, sceneName, sceneNumber), false, true);
+				}
+				else if (endGameType == AC_EndGameType.ResetScene)
+				{
+					sceneNumber = UnityVersionHandler.GetCurrentSceneNumber ();
+					KickStarter.levelStorage.ClearCurrentLevelData ();
+					KickStarter.sceneChanger.ChangeScene (new SceneInfo ("", sceneNumber), false, true);
+				}
+			}
+
+			return 0f;
 		}
-		else
+		
+		
+		override public ActionEnd End (List<Action> actions)
 		{
-			LevelStorage levelStorage = GameObject.FindWithTag (Tags.persistentEngine).GetComponent <LevelStorage>();
-			Destroy (GameObject.FindWithTag (Tags.player));
+			return GenerateStopActionEnd ();
+		}
+		
+		
+		#if UNITY_EDITOR
+
+		override public void ShowGUI ()
+		{
+			endGameType = (AC_EndGameType) EditorGUILayout.EnumPopup ("Command:", endGameType);
 
 			if (endGameType == AC_EndGameType.RestartGame)
 			{
-				levelStorage.ClearAllLevelData ();
-				levelStorage.GetComponent <RuntimeInventory>().Awake ();
-				levelStorage.GetComponent <RuntimeVariables>().Awake ();
-
-				Application.LoadLevel (sceneNumber);
-			}
-			else if (endGameType == AC_EndGameType.ResetScene)
-			{
-				levelStorage.ClearCurrentLevelData ();
-
-				Application.LoadLevel (Application.loadedLevel);
+				chooseSceneBy = (ChooseSceneBy) EditorGUILayout.EnumPopup ("Choose scene by:", chooseSceneBy);
+				if (chooseSceneBy == ChooseSceneBy.Name)
+				{
+					sceneName = EditorGUILayout.TextField ("Scene to restart to:", sceneName);
+				}
+				else
+				{
+					sceneNumber = EditorGUILayout.IntField ("Scene to restart to:", sceneNumber);
+				}
 			}
 		}
+		
 
-		return 0f;
-	}
-	
-	
-	override public int End (List<Action> actions)
-	{
-		return -1;
-	}
-	
-	
-	#if UNITY_EDITOR
-
-	override public void ShowGUI ()
-	{
-		endGameType = (AC_EndGameType) EditorGUILayout.EnumPopup ("Command:", endGameType);
-
-		if (endGameType == AC_EndGameType.RestartGame)
+		public override string SetLabel ()
 		{
-			sceneNumber = EditorGUILayout.IntField ("Scene to restart to:", sceneNumber);
+			return (" (" + endGameType.ToString () + ")");
 		}
-	}
-	
 
-	public override string SetLabel ()
-	{
-		return (" (" + endGameType.ToString () + ")");
+		#endif
+		
 	}
 
-	#endif
-	
 }

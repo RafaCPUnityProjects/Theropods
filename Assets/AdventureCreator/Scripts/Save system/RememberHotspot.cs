@@ -1,7 +1,7 @@
 /*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
  *	"RememberHotspot.cs"
  * 
@@ -12,101 +12,137 @@
 
 using UnityEngine;
 using System.Collections;
-using AC;
 
-public class RememberHotspot : ConstantID
+namespace AC
 {
 
-	public AC_OnOff startState = AC_OnOff.On;
-
-
-	public void Awake ()
+	/**
+	 * Attach this script to Hotspot objects in the scene whose state you wish to save.
+	 */
+	[AddComponentMenu("Adventure Creator/Save system/Remember Hotspot")]
+	#if !(UNITY_4_6 || UNITY_4_7 || UNITY_5_0)
+	[HelpURL("http://www.adventurecreator.org/scripting-guide/class_a_c_1_1_remember_hotspot.html")]
+	#endif
+	public class RememberHotspot : Remember
 	{
-		SettingsManager settingsManager = AdvGame.GetReferences ().settingsManager;
 
-		if (settingsManager && GameIsPlaying ())
+		/** Determines whether the Hotspot is on or off when the game begins */
+		public AC_OnOff startState = AC_OnOff.On;
+
+		private bool loadedData = false;
+
+
+		private void Awake ()
 		{
-			if (startState == AC_OnOff.On)
+			if (loadedData) return;
+
+			if (KickStarter.settingsManager && GameIsPlaying () && GetComponent <Hotspot>())
 			{
-				this.gameObject.layer = LayerMask.NameToLayer (settingsManager.hotspotLayer);
+				if (startState == AC_OnOff.On)
+				{
+					GetComponent <Hotspot>().TurnOn ();
+				}
+				else
+				{
+					GetComponent <Hotspot>().TurnOff ();
+				}
+			}
+		}
+
+
+		/**
+		 * <summary>Serialises appropriate GameObject values into a string.</summary>
+		 * <returns>The data, serialised as a string</returns>
+		 */
+		public override string SaveData ()
+		{
+			HotspotData hotspotData = new HotspotData ();
+			hotspotData.objectID = constantID;
+
+
+			if (GetComponent <Hotspot>())
+			{
+				Hotspot _hotspot = GetComponent <Hotspot>();
+				hotspotData.isOn = _hotspot.IsOn ();
+				hotspotData.buttonStates = ButtonStatesToString (_hotspot);
+
+				hotspotData.hotspotName = _hotspot.GetName (0);
+				hotspotData.displayLineID = _hotspot.displayLineID;
+			}
+			
+			return Serializer.SaveScriptData <HotspotData> (hotspotData);
+		}
+
+
+		/**
+		 * <summary>Deserialises a string of data, and restores the GameObject to its previous state.</summary>
+		 * <param name = "stringData">The data, serialised as a string</param>
+		 */
+		public override void LoadData (string stringData)
+		{
+			HotspotData data = Serializer.LoadScriptData <HotspotData> (stringData);
+			if (data == null)
+			{
+				loadedData = false;
+				return;
+			}
+
+			if (data.isOn)
+			{
+				gameObject.layer = LayerMask.NameToLayer (KickStarter.settingsManager.hotspotLayer);
 			}
 			else
 			{
-				this.gameObject.layer = LayerMask.NameToLayer (settingsManager.deactivatedLayer);
+				gameObject.layer = LayerMask.NameToLayer (KickStarter.settingsManager.deactivatedLayer);
 			}
-		}
-	}
 
-
-	public HotspotData SaveData ()
-	{
-		HotspotData hotspotData = new HotspotData ();
-		hotspotData.objectID = constantID;
-		
-		if (gameObject.layer == LayerMask.NameToLayer (AdvGame.GetReferences ().settingsManager.hotspotLayer))
-		{
-			hotspotData.isOn = true;
-		}
-		else
-		{
-			hotspotData.isOn = false;
-		}
-		
-		if (GetComponent <Hotspot>())
-		{
-			hotspotData.buttonStates = ButtonStatesToString (GetComponent <Hotspot>());
-		}
-		
-		return (hotspotData);
-	}
-
-
-	public void LoadData (HotspotData data)
-	{
-		if (data.isOn)
-		{
-			gameObject.layer = LayerMask.NameToLayer (AdvGame.GetReferences ().settingsManager.hotspotLayer);
-		}
-		else
-		{
-			gameObject.layer = LayerMask.NameToLayer (AdvGame.GetReferences ().settingsManager.deactivatedLayer);
-		}
-		
-		if (GetComponent <Hotspot>())
-		{
-			StringToButtonStates (GetComponent <Hotspot>(), data.buttonStates);
-		}
-	}
-
-
-	private void StringToButtonStates (Hotspot hotspot, string stateString)
-	{
-		if (stateString.Length == 0)
-		{
-			return;
-		}
-		
-		string[] typesArray = stateString.Split ("|"[0]);
-		
-		if (AdvGame.GetReferences ().settingsManager == null || AdvGame.GetReferences ().settingsManager.interactionMethod == AC_InteractionMethod.ContextSensitive)
-		{
-			// Single-use and look interactions
-			if (hotspot.provideUseInteraction && hotspot.useButton != null)
+			if (GetComponent <Hotspot>())
 			{
-				hotspot.useButton.isDisabled = SetButtonDisabledValue (typesArray [0]);
+				Hotspot _hotspot = GetComponent <Hotspot>();
+
+				if (data.isOn)
+				{
+					_hotspot.TurnOn ();
+				}
+				else
+				{
+					_hotspot.TurnOff ();
+				}
+
+				StringToButtonStates (_hotspot, data.buttonStates);
+
+				if (data.hotspotName != "")
+				{
+					_hotspot.SetName (data.hotspotName, data.displayLineID);
+				}
+				_hotspot.ResetMainIcon ();
 			}
+
+			loadedData = true;
+		}
+
+
+		private void StringToButtonStates (Hotspot hotspot, string stateString)
+		{
+			if (stateString.Length == 0)
+			{
+				return;
+			}
+
+			string[] typesArray = stateString.Split (SaveSystem.pipe[0]);
 			
-			if (hotspot.provideLookInteraction && hotspot.lookButton != null)
+			if (KickStarter.settingsManager == null || KickStarter.settingsManager.interactionMethod == AC_InteractionMethod.ContextSensitive)
 			{
-				hotspot.lookButton.isDisabled = SetButtonDisabledValue (typesArray [1]);
+				// Look interactions
+				if (hotspot.provideLookInteraction && hotspot.lookButton != null)
+				{
+					hotspot.lookButton.isDisabled = SetButtonDisabledValue (typesArray [0]);
+				}
 			}
-		}
-		else
-		{
-			// Multi-use interactions
+
 			if (hotspot.provideUseInteraction)
 			{
-				string[] usesArray = typesArray[0].Split (","[0]);
+				string[] usesArray = typesArray[1].Split (","[0]);
 				
 				for (int i=0; i<usesArray.Length; i++)
 				{
@@ -114,61 +150,51 @@ public class RememberHotspot : ConstantID
 					{
 						break;
 					}
-					
 					hotspot.useButtons[i].isDisabled = SetButtonDisabledValue (usesArray [i]);
 				}
 			}
-		}
-		
-		// Inventory interactions
-		if (hotspot.provideUseInteraction)
-		{
-			string[] invArray = typesArray[typesArray.Length - 1].Split (","[0]);
-			
-			for (int i=0; i<invArray.Length; i++)
+
+			// Inventory interactions
+			if (hotspot.provideInvInteraction && typesArray.Length > 2)
 			{
-				if (hotspot.invButtons.Count < i+1)
-				{
-					break;
-				}
+				string[] invArray = typesArray[2].Split (","[0]);
 				
-				hotspot.invButtons[i].isDisabled = SetButtonDisabledValue (invArray [i]);
+				for (int i=0; i<invArray.Length; i++)
+				{
+					if (hotspot.invButtons.Count < i+1)
+					{
+						break;
+					}
+					
+					hotspot.invButtons[i].isDisabled = SetButtonDisabledValue (invArray [i]);
+				}
 			}
 		}
-	}
-	
-	
-	private string ButtonStatesToString (Hotspot hotspot)
-	{
-		System.Text.StringBuilder stateString = new System.Text.StringBuilder ();
 		
-		if (AdvGame.GetReferences ().settingsManager == null || AdvGame.GetReferences ().settingsManager.interactionMethod == AC_InteractionMethod.ContextSensitive)
+		
+		private string ButtonStatesToString (Hotspot hotspot)
 		{
-			// Single-use and look interactions
-			if (hotspot.provideUseInteraction)
-			{
-				stateString.Append (GetButtonDisabledValue (hotspot.useButton) + "|");
-			}
-			else
-			{
-				stateString.Append ("0|");
-			}
+			System.Text.StringBuilder stateString = new System.Text.StringBuilder ();
 			
-			if (hotspot.provideLookInteraction)
+			if (KickStarter.settingsManager == null || KickStarter.settingsManager.interactionMethod == AC_InteractionMethod.ContextSensitive)
 			{
-				stateString.Append (GetButtonDisabledValue (hotspot.lookButton) + "|");
+				// Single-use and Look interaction
+				if (hotspot.provideLookInteraction)
+				{
+					stateString.Append (GetButtonDisabledValue (hotspot.lookButton));
+				}
+				else
+				{
+					stateString.Append ("0");
+				}
 			}
-			else
-			{
-				stateString.Append ("0|");
-			}
-		}
-		else
-		{
+
+			stateString.Append (SaveSystem.pipe);
+
 			// Multi-use interactions
 			if (hotspot.provideUseInteraction)
 			{
-				foreach (Button button in hotspot.useButtons)
+				foreach (AC.Button button in hotspot.useButtons)
 				{
 					stateString.Append (GetButtonDisabledValue (button));
 					
@@ -178,58 +204,71 @@ public class RememberHotspot : ConstantID
 					}
 				}
 			}
-			
-			stateString.Append ("|");
-		}
-		
-		// Inventory interactions
-		if (hotspot.provideInvInteraction)
-		{
-			foreach (Button button in hotspot.invButtons)
-			{
-				stateString.Append (GetButtonDisabledValue (button));
 				
-				if (hotspot.invButtons.IndexOf (button) < hotspot.invButtons.Count-1)
+			stateString.Append (SaveSystem.pipe);
+
+			// Inventory interactions
+			if (hotspot.provideInvInteraction)
+			{
+				foreach (AC.Button button in hotspot.invButtons)
 				{
-					stateString.Append (",");
+					stateString.Append (GetButtonDisabledValue (button));
+					
+					if (hotspot.invButtons.IndexOf (button) < hotspot.invButtons.Count-1)
+					{
+						stateString.Append (",");
+					}
 				}
 			}
+			
+			return stateString.ToString ();
 		}
-		
-		return stateString.ToString ();
-	}
 
 
-	private string GetButtonDisabledValue (Button button)
-	{
-		if (button != null && !button.isDisabled)
+		private string GetButtonDisabledValue (AC.Button button)
 		{
-			return ("1");
+			if (button != null && !button.isDisabled)
+			{
+				return ("1");
+			}
+			
+			return ("0");
 		}
 		
-		return ("0");
-	}
-	
-	
-	private bool SetButtonDisabledValue (string text)
-	{
-		if (text == "1")
+		
+		private bool SetButtonDisabledValue (string text)
 		{
-			return false;
+			if (text == "1")
+			{
+				return false;
+			}
+			
+			return true;
 		}
-		
-		return true;
+
 	}
 
-}
 
+	/**
+	 * A data container used by the RememberHotspot script.
+	 */
+	[System.Serializable]
+	public class HotspotData : RememberData
+	{
 
-[System.Serializable]
-public class HotspotData
-{
-	public int objectID;
-	public bool isOn;
-	public string buttonStates;
-	
-	public HotspotData () { }
+		/** True if the Hotspot is enabled */
+		public bool isOn;
+		/** The enabled state of each Interaction */
+		public string buttonStates;
+		/** The ID number that references the Hotspot's name, as generated by the Speech Manager */
+		public int displayLineID;
+		/** The Hotspot's display name */
+		public string hotspotName;
+
+		/**
+		 * The default Constructor.
+		 */
+		public HotspotData () { }
+	}
+
 }

@@ -1,7 +1,7 @@
 /*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
  *	"ActionCharPathFind.cs"
  * 
@@ -13,152 +13,278 @@
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
-using AC;
 
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
 
-[System.Serializable]
-public class ActionCharPathFind : Action
+namespace AC
 {
-	
-	public Marker marker;
-	public bool isPlayer;
-	public Char charToMove;
-	public PathSpeed speed;
-	public bool pathFind = true;
-	
-	
-	public ActionCharPathFind ()
+
+	[System.Serializable]
+	public class ActionCharPathFind : Action
 	{
-		this.isDisplayed = true;
-		title = "Character: Move to point";
-	}
-	
-	
-	override public float Run ()
-	{
-		if (!isRunning)
+
+		public int charToMoveParameterID = -1;
+		public int markerParameterID = -1;
+
+		public int charToMoveID = 0;
+		public int markerID = 0;
+		
+		public Marker marker;
+		public bool isPlayer;
+		public Char charToMove;
+		public PathSpeed speed;
+		public bool pathFind = true;
+		public bool doFloat = false;
+		
+		
+		public ActionCharPathFind ()
 		{
-			isRunning = true;
-			
+			this.isDisplayed = true;
+			category = ActionCategory.Character;
+			title = "Move to point";
+			description = "Moves a character to a given Marker object. By default, the character will attempt to pathfind their way to the marker, but can optionally just move in a straight line.";
+		}
+
+
+		public override void AssignValues (List<ActionParameter> parameters)
+		{
+			charToMove = AssignFile <Char> (parameters, charToMoveParameterID, charToMoveID, charToMove);
+			marker = AssignFile <Marker> (parameters, markerParameterID, markerID, marker);
+
 			if (isPlayer)
 			{
-				charToMove = GameObject.FindWithTag (Tags.player).GetComponent <Player>();
+				charToMove = KickStarter.player;
 			}
-			
-			if (charToMove && marker)
-			{
-				Paths path = charToMove.GetComponent <Paths>();
-				if (path == null)
-				{
-					Debug.LogWarning ("Cannot move a character with no Paths component");
-				}
-				else
-				{
-					if (charToMove is NPC)
-					{
-						NPC npcToMove = (NPC) charToMove;
-						npcToMove.FollowReset ();
-					}
-
-					path.pathType = AC_PathType.ForwardOnly;
-					path.pathSpeed = speed;
-					path.affectY = true;
-
-					Vector3[] pointArray;
-					Vector3 targetPosition = marker.transform.position;
-
-					SettingsManager settingsManager = AdvGame.GetReferences ().settingsManager;
-					if (settingsManager && settingsManager.ActInScreenSpace ())
-					{
-						targetPosition = AdvGame.GetScreenNavMesh (targetPosition);
-					}
-
-					if (pathFind && GameObject.FindWithTag (Tags.gameEngine) && GameObject.FindWithTag (Tags.gameEngine).GetComponent <NavigationManager>())
-					{
-						pointArray = GameObject.FindWithTag (Tags.gameEngine).GetComponent <NavigationManager>().navigationEngine.GetPointsArray (charToMove.transform.position, targetPosition);
-					}
-					else
-					{
-						List<Vector3> pointList = new List<Vector3>();
-						pointList.Add (targetPosition);
-						pointArray = pointList.ToArray ();
-					}
-
-					if (speed == PathSpeed.Walk)
-					{
-						charToMove.MoveAlongPoints (pointArray, false);
-					}
-					else
-					{
-						charToMove.MoveAlongPoints (pointArray, true);
-					}
-					
-					if (willWait)
-					{
-						return defaultPauseTime;
-					}
-				}
-			}
-
-			return 0f;
 		}
-		else
+		
+		
+		override public float Run ()
 		{
-			if (charToMove.GetPath () == null)
+			if (!isRunning)
 			{
-				isRunning = false;
+				isRunning = true;
+
+				if (charToMove && marker)
+				{
+					Paths path = charToMove.GetComponent <Paths>();
+					if (path == null)
+					{
+						ACDebug.LogWarning ("Cannot move a character with no Paths component");
+					}
+					else
+					{
+						if (charToMove is NPC)
+						{
+							NPC npcToMove = (NPC) charToMove;
+							npcToMove.StopFollowing ();
+						}
+
+						path.pathType = AC_PathType.ForwardOnly;
+						path.pathSpeed = speed;
+						path.affectY = true;
+
+						Vector3[] pointArray;
+						Vector3 targetPosition = marker.transform.position;
+
+						if (KickStarter.settingsManager.ActInScreenSpace ())
+						{
+							targetPosition = AdvGame.GetScreenNavMesh (targetPosition);
+						}
+
+						if (pathFind && KickStarter.navigationManager)
+						{
+							pointArray = KickStarter.navigationManager.navigationEngine.GetPointsArray (charToMove.transform.position, targetPosition, charToMove);
+						}
+						else
+						{
+							List<Vector3> pointList = new List<Vector3>();
+							pointList.Add (targetPosition);
+							pointArray = pointList.ToArray ();
+						}
+
+						if (speed == PathSpeed.Walk)
+						{
+							charToMove.MoveAlongPoints (pointArray, false);
+						}
+						else
+						{
+							charToMove.MoveAlongPoints (pointArray, true);
+						}
+
+						if (charToMove.GetPath ())
+						{
+							if (!pathFind && doFloat)
+							{
+								charToMove.GetPath ().affectY = true;
+							}
+							else
+							{
+								charToMove.GetPath ().affectY = false;
+							}
+						}
+
+						if (willWait)
+						{
+							return defaultPauseTime;
+						}
+					}
+				}
+
 				return 0f;
 			}
 			else
 			{
-				return (defaultPauseTime);
+				if (charToMove.GetPath () == null)
+				{
+					isRunning = false;
+					return 0f;
+				}
+				else
+				{
+					return (defaultPauseTime);
+				}
 			}
 		}
-	}
 
-	
-	#if UNITY_EDITOR
 
-	override public void ShowGUI ()
-	{
-		isPlayer = EditorGUILayout.Toggle ("Is Player?", isPlayer);
-
-		if (!isPlayer)
+		override public void Skip ()
 		{
-			charToMove = (Char) EditorGUILayout.ObjectField ("Character to move:", charToMove, typeof (Char), true);
+			if (charToMove && marker)
+			{
+				charToMove.EndPath ();
+
+				if (charToMove is NPC)
+				{
+					NPC npcToMove = (NPC) charToMove;
+					npcToMove.StopFollowing ();
+				}
+				
+				Vector3[] pointArray;
+				Vector3 targetPosition = marker.transform.position;
+				
+				if (KickStarter.settingsManager.ActInScreenSpace ())
+				{
+					targetPosition = AdvGame.GetScreenNavMesh (targetPosition);
+				}
+				
+				if (pathFind && KickStarter.navigationManager)
+				{
+					pointArray = KickStarter.navigationManager.navigationEngine.GetPointsArray (charToMove.transform.position, targetPosition);
+					KickStarter.navigationManager.navigationEngine.ResetHoles (KickStarter.sceneSettings.navMesh);
+				}
+				else
+				{
+					List<Vector3> pointList = new List<Vector3>();
+					pointList.Add (targetPosition);
+					pointArray = pointList.ToArray ();
+				}
+				
+				int i = pointArray.Length-1;
+
+				if (i>0)
+				{
+					charToMove.SetLookDirection (pointArray[i] - pointArray[i-1], true);
+				}
+				else
+				{
+					charToMove.SetLookDirection (pointArray[i] - charToMove.transform.position, true);
+				}
+
+				charToMove.Teleport (pointArray [i]);
+			}
 		}
 
-		marker = (Marker) EditorGUILayout.ObjectField ("Marker to move to:", marker, typeof (Marker), true);
-		speed = (PathSpeed) EditorGUILayout.EnumPopup ("Move speed:" , speed);
-		pathFind = EditorGUILayout.Toggle ("Pathfind?", pathFind);
-		willWait = EditorGUILayout.Toggle ("Pause until finish?", willWait);
-
-		AfterRunningOption ();
-	}
-	
-	
-	override public string SetLabel ()
-	{
-		string labelAdd = "";
 		
-		if (marker)
+		#if UNITY_EDITOR
+
+		override public void ShowGUI (List<ActionParameter> parameters)
 		{
-			if (charToMove)
+			isPlayer = EditorGUILayout.Toggle ("Is Player?", isPlayer);
+
+			if (!isPlayer)
 			{
-				labelAdd = " (" + charToMove.name + " to " + marker.name + ")";
+				charToMoveParameterID = Action.ChooseParameterGUI ("Character to move:", parameters, charToMoveParameterID, ParameterType.GameObject);
+				if (charToMoveParameterID >= 0)
+				{
+					charToMoveID = 0;
+					charToMove = null;
+				}
+				else
+				{
+					charToMove = (Char) EditorGUILayout.ObjectField ("Character to move:", charToMove, typeof (Char), true);
+					
+					charToMoveID = FieldToID <Char> (charToMove, charToMoveID);
+					charToMove = IDToField <Char> (charToMove, charToMoveID, false);
+				}
 			}
-			else if (isPlayer)
+
+			markerParameterID = Action.ChooseParameterGUI ("Marker to reach:", parameters, markerParameterID, ParameterType.GameObject);
+			if (markerParameterID >= 0)
 			{
-				labelAdd = " (Player to " + marker.name + ")";
+				markerID = 0;
+				marker = null;
 			}
+			else
+			{
+				marker = (Marker) EditorGUILayout.ObjectField ("Marker to reach:", marker, typeof (Marker), true);
+				
+				markerID = FieldToID <Marker> (marker, markerID);
+				marker = IDToField <Marker> (marker, markerID, false);
+			}
+
+			speed = (PathSpeed) EditorGUILayout.EnumPopup ("Move speed:" , speed);
+			pathFind = EditorGUILayout.Toggle ("Pathfind?", pathFind);
+			if (!pathFind)
+			{
+				doFloat = EditorGUILayout.Toggle ("Ignore gravity?", doFloat);
+			}
+			willWait = EditorGUILayout.Toggle ("Wait until finish?", willWait);
+
+			AfterRunningOption ();
 		}
+
+
+		override public void AssignConstantIDs (bool saveScriptsToo)
+		{
+			if (saveScriptsToo)
+			{
+				if (!isPlayer && charToMove != null && charToMove.GetComponent <NPC>())
+				{
+					AddSaveScript <RememberNPC> (charToMove);
+				}
+			}
+
+			if (!isPlayer)
+			{
+				AssignConstantID <Char> (charToMove, charToMoveID, charToMoveParameterID);
+			}
+			AssignConstantID <Marker> (marker, markerID, markerParameterID);
+		}
+
 		
-		return labelAdd;
+		override public string SetLabel ()
+		{
+			string labelAdd = "";
+			
+			if (marker)
+			{
+				if (charToMove)
+				{
+					labelAdd = " (" + charToMove.name + " to " + marker.name + ")";
+				}
+				else if (isPlayer)
+				{
+					labelAdd = " (Player to " + marker.name + ")";
+				}
+			}
+			
+			return labelAdd;
+		}
+
+		#endif
+		
 	}
 
-	#endif
-	
 }

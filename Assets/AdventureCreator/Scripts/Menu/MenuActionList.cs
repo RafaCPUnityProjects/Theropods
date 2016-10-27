@@ -1,12 +1,11 @@
 /*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
  *	"MenuActionList.cs"
  * 
- *	This script stores a list of Actions in an asset file.
- *	It is used to handle menu actions that are irregardless of scene.
+ *	This script is deprecated since AC version 1.34.
  * 
  */
 
@@ -14,8 +13,14 @@ using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 
-[System.Serializable]
-public class MenuActionList : InvActionList
+namespace AC
 {
+
+	/**
+	 * This class has been deprecated since AC, v1.34.
+	 */
+	[System.Serializable]
+	public class MenuActionList : ActionListAsset
+	{}
 
 }

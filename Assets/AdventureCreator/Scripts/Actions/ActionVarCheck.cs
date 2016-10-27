@@ -1,7 +1,7 @@
 /*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
  *	"ActionVarCheck.cs"
  * 
@@ -13,498 +13,548 @@
 using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
-using AC;
 
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
 
-[System.Serializable]
-public class ActionVarCheck : Action
+namespace AC
 {
-	
-	public int variableID;
-	public int variableNumber;
-	
-	public int intValue;
-	public enum IntCondition { EqualTo, NotEqualTo, LessThan, MoreThan };
-	public IntCondition intCondition;
-	public bool isAdditive = false;
-	
-	public BoolValue boolValue;
-	public enum BoolCondition { EqualTo, NotEqualTo };
-	public BoolCondition boolCondition;
 
-	public string stringValue;
-	
-	public ResultAction resultActionTrue;
-	public ResultAction resultActionFail;
-
-	public int skipActionTrue;
-	public AC.Action skipActionTrueActual;
-	public Cutscene linkedCutsceneTrue;
-	
-	public int skipActionFail;
-	public AC.Action skipActionFailActual;
-	public Cutscene linkedCutsceneFail;
-	
-	private VariablesManager variablesManager;
-	
-	
-	public ActionVarCheck ()
+	[System.Serializable]
+	public class ActionVarCheck : ActionCheck
 	{
-		this.isDisplayed = true;
-		title = "Variable: Check";
-	}
 
-	
-	override public int End (List<AC.Action> actions)
-	{
-		RuntimeVariables runtimeVariables = GameObject.FindWithTag(Tags.persistentEngine).GetComponent <RuntimeVariables>();
+		public int parameterID = -1;
+		public int variableID;
+		public int variableNumber;
 
-		variableNumber = GetVarNumber (AdvGame.GetReferences ().variablesManager.vars);
+		public int checkParameterID = -1;
 
-		if (runtimeVariables && variableNumber != -1)
-		{
-			bool result = false;
-			result = CheckCondition (runtimeVariables.localVars[variableNumber]);
-			
-			if (result)
-			{
-				if (resultActionTrue == ResultAction.Continue)
-				{
-					return 0;
-				}
-				
-				else if (resultActionTrue == ResultAction.Stop)
-				{
-					return -1;
-				}
-				
-				else if (resultActionTrue == ResultAction.Skip)
-				{
-					int skip = skipActionTrue;
-					if (skipActionTrueActual && actions.IndexOf (skipActionTrueActual) > 0)
-					{
-						skip = actions.IndexOf (skipActionTrueActual);
-					}
-					
-					return (skip);
-				}
-				
-				else if (resultActionTrue == ResultAction.RunCutscene)
-				{
-					if (linkedCutsceneTrue)
-					{
-						linkedCutsceneTrue.SendMessage ("Interact");
-					}
-					
-					return -2;
-				}
-			}
-			
-			else
-			{
-				if (resultActionFail == ResultAction.Continue)
-				{
-					return 0;
-				}
-				
-				else if (resultActionFail == ResultAction.Stop)
-				{
-					return -1;
-				}
-				
-				else if  (resultActionFail == ResultAction.Skip)
-				{
-					int skip = skipActionFail;
-					if (skipActionFailActual && actions.IndexOf (skipActionFailActual) > 0)
-					{
-						skip = actions.IndexOf (skipActionFailActual);
-					}
-					
-					return (skip);					
-				}
-				
-				else if (resultActionFail == ResultAction.RunCutscene)
-				{
-					if (linkedCutsceneFail)
-					{
-						linkedCutsceneFail.SendMessage ("Interact");
-					}
-					
-					return -2;
-				}
-			}
+		public GetVarMethod getVarMethod = GetVarMethod.EnteredValue;
+		public int compareVariableID;
 
-		}
+		public int intValue;
+		public float floatValue;
+		public IntCondition intCondition;
+		public bool isAdditive = false;
 		
-		return 0;
-	}
-	
-	
-	private bool CheckCondition (GVar _var)
-	{
-		if (_var.type == VariableType.Boolean)
-		{
-			int fieldValue = _var.val;
+		public BoolValue boolValue = BoolValue.True;
+		public BoolCondition boolCondition;
 
-			if (boolCondition == BoolCondition.EqualTo)
-			{
-				if (fieldValue == (int) boolValue)
-				{
-					return true;
-				}
-			}
-			else
-			{
-				if (fieldValue != (int) boolValue)
-				{
-					return true;
-				}
-			}
+		public string stringValue;
+		public bool checkCase = true;
+
+		public VariableLocation location = VariableLocation.Global;
+
+		
+		public ActionVarCheck ()
+		{
+			this.isDisplayed = true;
+			category = ActionCategory.Variable;
+			title = "Check";
+			description = "Queries the value of both Global and Local Variables declared in the Variables Manager. Variables can be compared with a fixed value, or with the values of other Variables.";
 		}
 
-		else if (_var.type == VariableType.Integer)
-		{
-			int fieldValue = _var.val;
 
-			if (intCondition == IntCondition.EqualTo)
-			{
-				if (fieldValue == intValue)
-				{
-					return true;
-				}
-			}
-			
-			else if (intCondition == IntCondition.NotEqualTo)
-			{
-				if (fieldValue != intValue)
-				{
-					return true;
-				}
-			}
-			
-			else if (intCondition == IntCondition.LessThan)
-			{
-				if (fieldValue < intValue)
-				{
-					return true;
-				}
-			}
-			
-			else if (intCondition == IntCondition.MoreThan)
-			{
-				if (fieldValue > intValue)
-				{
-					return true;
-				}
-			}
+		override public void AssignValues (List<ActionParameter> parameters)
+		{
+			variableID = AssignVariableID (parameters, parameterID, variableID);
+
+			intValue = AssignInteger (parameters, checkParameterID, intValue);
+			boolValue = AssignBoolean (parameters, checkParameterID, boolValue);
+			floatValue = AssignFloat (parameters, checkParameterID, floatValue);
+			stringValue = AssignString (parameters, checkParameterID, stringValue);
+			compareVariableID = AssignVariableID (parameters, checkParameterID, compareVariableID);
 		}
 
-		else if (_var.type == VariableType.String)
+		
+		override public ActionEnd End (List<AC.Action> actions)
 		{
-			string fieldValue = _var.textVal;
-
-			if (boolCondition == BoolCondition.EqualTo)
+			if (variableID == -1)
 			{
-				if (fieldValue == stringValue)
+				return GenerateStopActionEnd ();
+			}
+
+			GVar compareVar = null;
+
+			if (getVarMethod == GetVarMethod.GlobalVariable || getVarMethod == GetVarMethod.LocalVariable)
+			{
+				if (compareVariableID == -1)
 				{
-					return true;
+					return GenerateStopActionEnd ();
+				}
+
+				if (getVarMethod == GetVarMethod.GlobalVariable)
+				{
+					compareVar = GlobalVariables.GetVariable (compareVariableID);
+					compareVar.Download ();
+				}
+				else if (getVarMethod == GetVarMethod.LocalVariable && !isAssetFile)
+				{
+					compareVar = LocalVariables.GetVariable (compareVariableID);
 				}
 			}
+
+			if (location == VariableLocation.Local && !isAssetFile)
+			{
+				return ProcessResult (CheckCondition (LocalVariables.GetVariable (variableID), compareVar), actions);
+			}
+
 			else
 			{
-				if (fieldValue != stringValue)
+				GVar var = GlobalVariables.GetVariable (variableID);
+				if (var != null)
 				{
-					return true;
+					var.Download ();
+					return ProcessResult (CheckCondition (var, compareVar), actions);
 				}
+				return GenerateStopActionEnd ();
 			}
 		}
 		
-		return false;
-	}
-
-	
-	#if UNITY_EDITOR
-
-	override public void ShowGUI ()
-	{
-		if (!variablesManager)
-		{
-			variablesManager = AdvGame.GetReferences ().variablesManager;
-		}
 		
-		if (variablesManager)
+		private bool CheckCondition (GVar _var, GVar _compareVar)
 		{
-			// Create a string List of the field's names (for the PopUp box)
-			List<string> labelList = new List<string>();
+			if (_var == null)
+			{
+				ACDebug.LogWarning ("Cannot check state of variable since it cannot be found!");
+				return false;
+			}
+
+			if (_compareVar != null && _var != null && _compareVar.type != _var.type)
+			{
+				ACDebug.LogWarning ("Cannot compare " + _var.label + " and " + _compareVar.label + " as they are not the same type!");
+				return false;
+			}
+
+			if (_var.type == VariableType.Boolean)
+			{
+				int fieldValue = _var.val;
+				int compareValue = (int) boolValue;
+				if (_compareVar != null)
+				{
+					compareValue = _compareVar.val;
+				}
+
+				if (boolCondition == BoolCondition.EqualTo)
+				{
+					if (fieldValue == compareValue)
+					{
+						return true;
+					}
+				}
+				else
+				{
+					if (fieldValue != compareValue)
+					{
+						return true;
+					}
+				}
+			}
+
+			else if (_var.type == VariableType.Integer || _var.type == VariableType.PopUp)
+			{
+				int fieldValue = _var.val;
+				int compareValue = intValue;
+				if (_compareVar != null)
+				{
+					compareValue = _compareVar.val;
+				}
+
+				if (intCondition == IntCondition.EqualTo)
+				{
+					if (fieldValue == compareValue)
+					{
+						return true;
+					}
+				}
+				else if (intCondition == IntCondition.NotEqualTo)
+				{
+					if (fieldValue != compareValue)
+					{
+						return true;
+					}
+				}
+				else if (intCondition == IntCondition.LessThan)
+				{
+					if (fieldValue < compareValue)
+					{
+						return true;
+					}
+				}
+				else if (intCondition == IntCondition.MoreThan)
+				{
+					if (fieldValue > compareValue)
+					{
+						return true;
+					}
+				}
+			}
+
+			else if (_var.type == VariableType.Float)
+			{
+				float fieldValue = _var.floatVal;
+				float compareValue = floatValue;
+				if (_compareVar != null)
+				{
+					compareValue = _compareVar.floatVal;
+				}
+
+				if (intCondition == IntCondition.EqualTo)
+				{
+					if (fieldValue == compareValue)
+					{
+						return true;
+					}
+				}
+				else if (intCondition == IntCondition.NotEqualTo)
+				{
+					if (fieldValue != compareValue)
+					{
+						return true;
+					}
+				}
+				else if (intCondition == IntCondition.LessThan)
+				{
+					if (fieldValue < compareValue)
+					{
+						return true;
+					}
+				}
+				else if (intCondition == IntCondition.MoreThan)
+				{
+					if (fieldValue > compareValue)
+					{
+						return true;
+					}
+				}
+			}
+
+			else if (_var.type == VariableType.String)
+			{
+				string fieldValue = _var.textVal;
+				string compareValue = AdvGame.ConvertTokens (stringValue);
+				if (_compareVar != null)
+				{
+					compareValue = _compareVar.textVal;
+				}
+
+				if (!checkCase)
+				{
+					fieldValue = fieldValue.ToLower ();
+					compareValue = compareValue.ToLower ();
+				}
+
+				if (boolCondition == BoolCondition.EqualTo)
+				{
+					if (fieldValue == compareValue)
+					{
+						return true;
+					}
+				}
+				else
+				{
+					if (fieldValue != compareValue)
+					{
+						return true;
+					}
+				}
+			}
 			
+			return false;
+		}
+
+		
+		#if UNITY_EDITOR
+
+		override public void ShowGUI (List<ActionParameter> parameters)
+		{
+			if (isAssetFile)
+			{
+				location = VariableLocation.Global;
+			}
+			else
+			{
+				location = (VariableLocation) EditorGUILayout.EnumPopup ("Source:", location);
+			}
+
+			if (isAssetFile && getVarMethod == GetVarMethod.LocalVariable)
+			{
+				EditorGUILayout.HelpBox ("Local Variables cannot be referenced by Asset-based Actions.", MessageType.Warning);
+			}
+
+			if (location == VariableLocation.Global)
+			{
+				if (AdvGame.GetReferences ().variablesManager)
+				{
+					VariablesManager variablesManager = AdvGame.GetReferences ().variablesManager;
+
+					parameterID = Action.ChooseParameterGUI ("Variable:", parameters, parameterID, ParameterType.GlobalVariable);
+					if (parameterID >= 0)
+					{
+						variableID = ShowVarGUI (parameters, variablesManager.vars, variableID, false);
+					}
+					else
+					{
+						variableID = ShowVarGUI (parameters, variablesManager.vars, variableID, true);
+					}
+				}
+			}
+
+			else if (location == VariableLocation.Local)
+			{
+				if (KickStarter.localVariables)
+				{
+					parameterID = Action.ChooseParameterGUI ("Variable:", parameters, parameterID, ParameterType.LocalVariable);
+					if (parameterID >= 0)
+					{
+						variableID = ShowVarGUI (parameters, KickStarter.localVariables.localVars, variableID, false);
+					}
+					else
+					{
+						variableID = ShowVarGUI (parameters, KickStarter.localVariables.localVars, variableID, true);
+					}
+				}
+			}
+
+		}
+
+
+		private int ShowVarSelectorGUI (List<GVar> vars, int ID)
+		{
 			variableNumber = -1;
 			
-			if (variablesManager.vars.Count > 0)
+			List<string> labelList = new List<string>();
+			foreach (GVar _var in vars)
 			{
-				foreach (GVar _var in variablesManager.vars)
+				labelList.Add (_var.label);
+			}
+			
+			variableNumber = GetVarNumber (vars, ID);
+			
+			if (variableNumber == -1)
+			{
+				// Wasn't found (variable was deleted?), so revert to zero
+				ACDebug.LogWarning ("Previously chosen variable no longer exists!");
+				variableNumber = 0;
+				ID = 0;
+			}
+
+			variableNumber = EditorGUILayout.Popup ("Variable:", variableNumber, labelList.ToArray());
+			ID = vars[variableNumber].id;
+
+			return ID;
+		}
+
+
+		private int ShowVarGUI (List<ActionParameter> parameters, List<GVar> vars, int ID, bool changeID)
+		{
+			if (vars.Count > 0)
+			{
+				if (changeID)
 				{
-					labelList.Add (_var.label);
+					ID = ShowVarSelectorGUI (vars, ID);
+				}
+				variableNumber = Mathf.Min (variableNumber, vars.Count-1);
+				getVarMethod = (GetVarMethod) EditorGUILayout.EnumPopup ("Compare with:", getVarMethod);
+
+				if (parameters == null || parameters.Count == 0)
+				{
+					EditorGUILayout.BeginHorizontal ();
 				}
 
-				variableNumber = GetVarNumber (variablesManager.vars);
-
-				if (variableNumber == -1)
+				if (vars [variableNumber].type == VariableType.Boolean)
 				{
-					// Wasn't found (variable was deleted?), so revert to zero
-					Debug.LogWarning ("Previously chosen variable no longer exists!");
-					variableNumber = 0;
-					variableID = 0;
+					boolCondition = (BoolCondition) EditorGUILayout.EnumPopup (boolCondition);
+					if (getVarMethod == GetVarMethod.EnteredValue)
+					{
+						checkParameterID = Action.ChooseParameterGUI ("Boolean:", parameters, checkParameterID, ParameterType.Boolean);
+						if (checkParameterID < 0)
+						{
+							EditorGUILayout.LabelField ("Boolean:", GUILayout.MaxWidth (60f));
+							boolValue = (BoolValue) EditorGUILayout.EnumPopup (boolValue);
+						}
+					}
 				}
-		
-				EditorGUILayout.BeginHorizontal();
-				
-					variableNumber = EditorGUILayout.Popup (variableNumber, labelList.ToArray());
-					variableID = variablesManager.vars[variableNumber].id;
-					
-					if (variablesManager.vars [variableNumber].type == VariableType.Boolean)
+				else if (vars [variableNumber].type == VariableType.Integer)
+				{
+					intCondition = (IntCondition) EditorGUILayout.EnumPopup (intCondition);
+					if (getVarMethod == GetVarMethod.EnteredValue)
 					{
-						boolCondition = (BoolCondition) EditorGUILayout.EnumPopup (boolCondition);
-						boolValue = (BoolValue) EditorGUILayout.EnumPopup (boolValue);
+						checkParameterID = Action.ChooseParameterGUI ("Integer:", parameters, checkParameterID, ParameterType.Integer);
+						if (checkParameterID < 0)
+						{
+							EditorGUILayout.LabelField ("Integer:", GUILayout.MaxWidth (60f));
+							intValue = EditorGUILayout.IntField (intValue);
+						}
 					}
-					else if (variablesManager.vars [variableNumber].type == VariableType.Integer)
+				}
+				else if (vars [variableNumber].type == VariableType.PopUp)
+				{
+					intCondition = (IntCondition) EditorGUILayout.EnumPopup (intCondition);
+					if (getVarMethod == GetVarMethod.EnteredValue)
 					{
-						intCondition = (IntCondition) EditorGUILayout.EnumPopup (intCondition);
-						intValue = EditorGUILayout.IntField (intValue);
+						checkParameterID = Action.ChooseParameterGUI ("Value:", parameters, checkParameterID, ParameterType.Integer);
+						if (checkParameterID < 0)
+						{
+							EditorGUILayout.LabelField ("Value:", GUILayout.MaxWidth (60f));
+							intValue = EditorGUILayout.Popup (intValue, vars [variableNumber].popUps);
+						}
 					}
-					else if (variablesManager.vars [variableNumber].type == VariableType.String)
+				}
+				else if (vars [variableNumber].type == VariableType.Float)
+				{
+					intCondition = (IntCondition) EditorGUILayout.EnumPopup (intCondition);
+					if (getVarMethod == GetVarMethod.EnteredValue)
 					{
-						boolCondition = (BoolCondition) EditorGUILayout.EnumPopup (boolCondition);
-						stringValue = EditorGUILayout.TextField (stringValue);
+						checkParameterID = Action.ChooseParameterGUI ("Float:", parameters, checkParameterID, ParameterType.Float);
+						if (checkParameterID < 0)
+						{
+							EditorGUILayout.LabelField ("Float:", GUILayout.MaxWidth (60f));
+							floatValue = EditorGUILayout.FloatField (floatValue);
+						}
 					}
-				
-				EditorGUILayout.EndHorizontal();
+				}
+				else if (vars [variableNumber].type == VariableType.String)
+				{
+					boolCondition = (BoolCondition) EditorGUILayout.EnumPopup (boolCondition);
+					if (getVarMethod == GetVarMethod.EnteredValue)
+					{
+						checkParameterID = Action.ChooseParameterGUI ("String:", parameters, checkParameterID, ParameterType.String);
+						if (checkParameterID < 0)
+						{
+							EditorGUILayout.LabelField ("String:", GUILayout.MaxWidth (60f));
+							stringValue = EditorGUILayout.TextField (stringValue);
+						}
+					}
+				}
+
+				if (getVarMethod == GetVarMethod.GlobalVariable)
+				{
+					if (AdvGame.GetReferences ().variablesManager == null || AdvGame.GetReferences ().variablesManager.vars == null || AdvGame.GetReferences ().variablesManager.vars.Count == 0)
+					{
+						EditorGUILayout.HelpBox ("No Global variables exist!", MessageType.Info);
+					}
+					else
+					{
+						checkParameterID = Action.ChooseParameterGUI ("Global variable:", parameters, checkParameterID, ParameterType.GlobalVariable);
+						if (checkParameterID < 0)
+						{
+							compareVariableID = ShowVarSelectorGUI (AdvGame.GetReferences ().variablesManager.vars, compareVariableID);
+						}
+					}
+				}
+				else if (getVarMethod == GetVarMethod.LocalVariable)
+				{
+					if (KickStarter.localVariables == null || KickStarter.localVariables.localVars == null || KickStarter.localVariables.localVars.Count == 0)
+					{
+						EditorGUILayout.HelpBox ("No Local variables exist!", MessageType.Info);
+					}
+					else
+					{
+						checkParameterID = Action.ChooseParameterGUI ("Local variable:", parameters, checkParameterID, ParameterType.LocalVariable);
+						if (checkParameterID < 0)
+						{
+							compareVariableID = ShowVarSelectorGUI (KickStarter.localVariables.localVars, compareVariableID);
+						}
+					}
+				}
+
+				if (parameters == null || parameters.Count == 0)
+				{
+					EditorGUILayout.EndHorizontal ();
+				}
+
+				if (vars [variableNumber].type == VariableType.String)
+				{
+					checkCase = EditorGUILayout.Toggle ("Case-senstive?", checkCase);
+				}
 			}
 			else
 			{
-				EditorGUILayout.HelpBox ("No global variables exist!", MessageType.Info);
-				variableID = -1;
+				EditorGUILayout.HelpBox ("No variables exist!", MessageType.Info);
+				ID = -1;
 				variableNumber = -1;
 			}
-		}		
-	}
+
+			return ID;
+		}
 
 
-	override public string SetLabel ()
-	{
-		string labelAdd = "";
-		
-		if (variablesManager)
+		override public string SetLabel ()
 		{
-			if (variablesManager.vars.Count > 0 && variablesManager.vars.Count > variableNumber)
+			if (location == VariableLocation.Local && !isAssetFile)
 			{
-				if (variableNumber > -1)
+				if (KickStarter.localVariables)
 				{
-					labelAdd = " (" + variablesManager.vars[variableNumber].label + ")";
+					return GetLabelString (KickStarter.localVariables.localVars);
 				}
 			}
-		}
-		
-		return labelAdd;
-	}
-
-
-	override public void SkipActionGUI (List<Action> actions, bool showGUI)
-	{
-		if (showGUI)
-		{
-			resultActionTrue = (Action.ResultAction) EditorGUILayout.EnumPopup("If condition is met:", (Action.ResultAction) resultActionTrue);
-		}
-		if (resultActionTrue == Action.ResultAction.RunCutscene && showGUI)
-		{
-			linkedCutsceneTrue = (Cutscene) EditorGUILayout.ObjectField ("Cutscene to run:", linkedCutsceneTrue, typeof (Cutscene), true);
-		}
-		else if (resultActionTrue == Action.ResultAction.Skip)
-		{
-			SkipActionTrueGUI (actions, showGUI);
-		}
-
-		if (showGUI)
-		{
-			resultActionFail = (Action.ResultAction) EditorGUILayout.EnumPopup("If condition is not met:", (Action.ResultAction) resultActionFail);
-		}
-		if (resultActionFail == Action.ResultAction.RunCutscene && showGUI)
-		{
-			linkedCutsceneFail = (Cutscene) EditorGUILayout.ObjectField ("Cutscene to run:", linkedCutsceneFail, typeof (Cutscene), true);
-		}
-		else if (resultActionFail == Action.ResultAction.Skip)
-		{
-			SkipActionFailGUI (actions, showGUI);
-		}
-	}
-
-
-	private void SkipActionTrueGUI (List<Action> actions, bool showGUI)
-	{
-		int tempSkipAction = skipActionTrue;
-		int offset = actions.IndexOf (this) + 1;
-		List<string> labelList = new List<string>();
-		
-		if (skipActionTrueActual)
-		{
-			bool found = false;
-			
-			if (offset <= actions.Count)
+			else
 			{
-				for (int i = 0; i < actions.Count - offset; i++)
+				if (AdvGame.GetReferences ().variablesManager)
 				{
-					labelList.Add ((i + offset).ToString () + ": " + actions [i + offset].title);
-					
-					if (skipActionTrueActual == actions [i + offset])
-					{
-						skipActionTrue = i + offset;
-						found = true;
-					}
+					return GetLabelString (AdvGame.GetReferences ().variablesManager.vars);
 				}
 			}
-			
-			if (!found)
-			{
-				skipActionTrue = tempSkipAction;
-			}
-		}
-		
-		if (skipActionTrue < offset)
-		{
-			skipActionTrue = offset;
-		}
-		
-		if (skipActionTrue >= actions.Count)
-		{
-			if (offset == actions.Count)
-			{
-				skipActionTrue = 0;
-			}
-			else
-			{
-				skipActionTrue = actions.Count - 1;
-			}
+
+			return "";
 		}
 
-		if (showGUI)
-		{
-			if (skipActionTrue > 0)
-			{
-				EditorGUILayout.BeginHorizontal();
-				EditorGUILayout.LabelField ("  Action to skip to:");
-				tempSkipAction = EditorGUILayout.Popup (skipActionTrue - offset, labelList.ToArray());
-				skipActionTrue = tempSkipAction + offset;
-				EditorGUILayout.EndHorizontal();
-				skipActionTrueActual = actions [skipActionTrue];
-			}
-			else
-			{
-				EditorGUILayout.HelpBox ("Cannot skip action - no further Actions available", MessageType.Warning);
-			}
-		}
-		else
-		{
-			if (skipActionTrue > 0)
-			{
-				skipActionTrueActual = actions [skipActionTrue];
-			}
-		}
-	}
 
-
-	private void SkipActionFailGUI (List<Action> actions, bool showGUI)
-	{
-		int tempSkipAction = skipActionFail;
-		int offset = actions.IndexOf (this) + 1;
-		List<string> labelList = new List<string>();
-		
-		if (skipActionFailActual)
+		private string GetLabelString (List<GVar> vars)
 		{
-			bool found = false;
-			
-			if (offset <= actions.Count)
+			string labelAdd = "";
+
+			if (vars.Count > 0 && vars.Count > variableNumber && variableNumber > -1)
 			{
-				for (int i = 0; i < actions.Count - offset; i++)
+				labelAdd = " (" + vars[variableNumber].label;
+				
+				if (vars [variableNumber].type == VariableType.Boolean)
 				{
-					labelList.Add ((i + offset).ToString () + ": " + actions [i + offset].title);
-					
-					if (skipActionFailActual == actions [i + offset])
-					{
-						skipActionFail = i + offset;
-						found = true;
-					}
+					labelAdd += " " + boolCondition.ToString () + " " + boolValue.ToString ();
 				}
+				else if (vars [variableNumber].type == VariableType.Integer)
+				{
+					labelAdd += " " + intCondition.ToString () + " " + intValue.ToString ();
+				}
+				else if (vars [variableNumber].type == VariableType.Float)
+				{
+					labelAdd += " " + intCondition.ToString () + " " + floatValue.ToString ();
+				}
+				else if (vars [variableNumber].type == VariableType.String)
+				{
+					labelAdd += " " + boolCondition.ToString () + " " + stringValue;
+				}
+				else if (vars [variableNumber].type == VariableType.PopUp)
+				{
+					labelAdd += " " + intCondition.ToString () + " " + vars[variableNumber].popUps[intValue];
+				}
+				
+				labelAdd += ")";
 			}
-			
-			if (!found)
-			{
-				skipActionFail = tempSkipAction;
-			}
+
+			return labelAdd;
 		}
 		
-		if (skipActionFail < offset)
+		#endif
+
+
+		private int GetVarNumber (List<GVar> vars, int ID)
 		{
-			skipActionFail = offset;
-		}
-		
-		if (skipActionFail >= actions.Count)
-		{
-			if (offset == actions.Count)
+			int i = 0;
+			foreach (GVar _var in vars)
 			{
-				skipActionFail = 0;
+				if (_var.id == ID)
+				{
+					return i;
+				}
+				i++;
 			}
-			else
-			{
-				skipActionFail = actions.Count - 1;
-			}
+			return -1;
 		}
 
-		if (showGUI)
-		{
-			if (skipActionFail > 0)
-			{
-				EditorGUILayout.BeginHorizontal();
-				EditorGUILayout.LabelField ("  Action to skip to:");
-				tempSkipAction = EditorGUILayout.Popup (skipActionFail - offset, labelList.ToArray());
-				skipActionFail = tempSkipAction + offset;
-				EditorGUILayout.EndHorizontal();
-				skipActionFailActual = actions [skipActionFail];
-			}
-			else
-			{
-				EditorGUILayout.HelpBox ("Cannot skip action - no further Actions available", MessageType.Warning);
-			}
-		}
-		else
-		{
-			if (skipActionFail > 0)
-			{
-				skipActionFailActual = actions [skipActionFail];
-			}
-		}
 	}
-	
-	#endif
-
-
-	private int GetVarNumber (List<GVar> vars)
-	{
-		int i = 0;
-
-		foreach (GVar _var in vars)
-		{
-			if (_var.id == variableID)
-			{
-				return i;
-			}
-			
-			i++;
-		}
-
-		return -1;
-	}
-
 
 }

@@ -1,7 +1,7 @@
 /*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
  *	"Invisible.cs"
  * 
@@ -12,12 +12,23 @@
 using UnityEngine;
 using System.Collections;
 
-public class Invisible : MonoBehaviour
+namespace AC
 {
-	
-	void Awake ()
+
+	/**
+	 * This script disables the Renderer component of any GameObject it is attached to, making it invisible.
+	 */
+	#if !(UNITY_4_6 || UNITY_4_7 || UNITY_5_0)
+	[HelpURL("http://www.adventurecreator.org/scripting-guide/class_a_c_1_1_invisible.html")]
+	#endif
+	public class Invisible : MonoBehaviour
 	{
-		this.GetComponent<Renderer>().enabled = false;
+		
+		private void Awake ()
+		{
+			this.GetComponent <Renderer>().enabled = false;
+		}
+
 	}
 
 }

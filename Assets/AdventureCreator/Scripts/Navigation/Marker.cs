@@ -1,7 +1,7 @@
 /*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
  *	"Marker.cs"
  * 
@@ -13,15 +13,34 @@
 using UnityEngine;
 using System.Collections;
 
-public class Marker : MonoBehaviour
+namespace AC
 {
 
-	private void Awake ()
+	/**
+	 * A component used to create reference transforms, as needed by the PlayerStart and various Actions.
+	 * When the game begins, the renderer will be disabled and the GameObject will be rotated if the game is 2D.
+	 */
+	#if !(UNITY_4_6 || UNITY_4_7 || UNITY_5_0)
+	[HelpURL("http://www.adventurecreator.org/scripting-guide/class_a_c_1_1_marker.html")]
+	#endif
+	[AddComponentMenu("Adventure Creator/Navigation/Marker")]
+	public class Marker : MonoBehaviour
 	{
-		if (this.GetComponent<Renderer>())
+
+		protected void Awake ()
 		{
-			this.GetComponent<Renderer>().enabled = false;
+			if (GetComponent <Renderer>())
+			{
+				GetComponent <Renderer>().enabled = false;
+			}
+			
+			if (KickStarter.settingsManager && KickStarter.settingsManager.IsUnity2D ())
+			{
+				transform.RotateAround (transform.position, Vector3.right, 90f);
+				transform.RotateAround (transform.position, transform.right, -90f);
+			}
 		}
+		
 	}
-	
+
 }

@@ -1,7 +1,7 @@
 /*
  *
  *	Adventure Creator
- *	by Chris Burton, 2013-2014
+ *	by Chris Burton, 2013-2016
  *	
  *	"CursorManager.cs"
  * 
@@ -14,274 +14,467 @@
 using UnityEngine;
 using System.IO;
 using System.Collections.Generic;
-using AC;
 
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
 
-[System.Serializable]
-public class CursorManager : ScriptableObject
+namespace AC
 {
 
-	public CursorDisplay cursorDisplay = CursorDisplay.Always;
-	public bool allowMainCursor = false;
-
-	public bool addHotspotPrefix = false;
-	public bool allowInteractionCursor = false;
-	public bool cycleCursors = false;
-	
-	public float normalCursorSize = 0.015f;
-	public float mouseOverCursorSize = 0.015f;
-	public float iconCursorSize = 0.04f;
-	public float inventoryCursorSize = 0.06f;
-	
-	public Texture2D pointerTexture = null;
-	public Texture2D mouseOverTexture = null;
-	public InventoryHandling inventoryHandling = InventoryHandling.ChangeCursor;
-	public HotspotPrefix hotspotPrefix1 = new HotspotPrefix ("Use");
-	public HotspotPrefix hotspotPrefix2 = new HotspotPrefix ("on");
-
-	public List<CursorIcon> cursorIcons = new List<CursorIcon>();
-	public LookUseCursorAction lookUseCursorAction = LookUseCursorAction.DisplayBothSideBySide;
-	public int lookCursor_ID = 0;
-	public int lookCursor_int = 0;
-	
-	
-	#if UNITY_EDITOR
-	
-	private static GUIContent
-		insertContent = new GUIContent("+", "Insert variable"),
-		deleteContent = new GUIContent("-", "Delete variable");
-
-	private static GUILayoutOption
-		buttonWidth = GUILayout.MaxWidth (20f),
-		labelWidth = GUILayout.MaxWidth (50f);
-	
-	
-	public void ShowGUI ()
+	/**
+	 * Handles the "Cursor" tab of the Game Editor window.
+	 * All possible cursors that the mouse can have (excluding inventory items) are defined here, as are the various ways in which these cursors are displayed.
+	 */
+	[System.Serializable]
+	public class CursorManager : ScriptableObject
 	{
-		SettingsManager settingsManager = AdvGame.GetReferences().settingsManager;
+
+		/** The rendering method of all cursors (Software, Hardware) */
+		public CursorRendering cursorRendering = CursorRendering.Software;
+		/** The rule that defines when the main cursor is shown (Always, Never, OnlyWhenPaused) */
+		public CursorDisplay cursorDisplay = CursorDisplay.Always;
+		/** If True, then the system's default hardware cursor will replaced with a custom one */
+		public bool allowMainCursor = false;
+
+		/** If True, then a separate cursor will display when in "walk mode" */
+		public bool allowWalkCursor = false;
+		/** If True, then a prefix can be added to the Hotspot label when in "walk mode" */
+		public bool addWalkPrefix = false;
+		/** The prefix to add to the Hotspot label when in "walk mode", if addWalkPrefix = True */
+		public HotspotPrefix walkPrefix = new HotspotPrefix ("Walk to");
+
+		/** If True, then the Cursor's interaction verb will prefix the Hotspot label when hovering over Hotspots */
+		public bool addHotspotPrefix = false;
+		/** If True, then the cursor will be controlled by the current Interaction when hovering over a Hotspot */
+		public bool allowInteractionCursor = false;
+		/** If True, then the cursor will be controlled by the current Interaction when hovering over an inventory item (see InvItem) */
+		public bool allowInteractionCursorForInventory = false;
+		/** If True, then cursor modes can by clicked by right-clicking, if interactionMethod = AC_InteractionMethod.ChooseInteractionThenHotspot in SettingsManager */
+		public bool cycleCursors = false;
+		/** If True, then left-clicking a Hotspot will examine it if no "use" Interaction exists (if interactionMethod = AC_InteractionMethod.ContextSensitive in SettingsManager) */
+		public bool leftClickExamine = false;
+		/** If True, and allowWalkCursor = True, then the walk cursor will only show when the cursor is hovering over a NavMesh */
+		public bool onlyWalkWhenOverNavMesh = false;
+		/** If True, then Hotspot labels will not show when an inventory item is selected unless the cursor is over another inventory item or a Hotspot */
+		public bool onlyShowInventoryLabelOverHotspots = false;
+		/** The size of selected inventory item graphics when used as a cursor */
+		public float inventoryCursorSize = 0.06f;
+
+		/** The cursor while the game is running a gameplay-blocking cutscene */
+		public CursorIconBase waitIcon = new CursorIcon ();
+		/** The cursor while the game is paused but Menus are interactive */
+		public CursorIconBase pointerIcon = new CursorIcon ();
+		/** The cursor when in "walk mode", if allowWalkCursor = True */
+		public CursorIconBase walkIcon = new CursorIcon ();
+		/** The cursor when hovering over a Hotspot */
+		public CursorIconBase mouseOverIcon = new CursorIcon ();
+
+		/** What happens to the cursor when an inventory item is selected (ChangeCursor, ChangeHotspotLabel, ChangeCursorAndHotspotLabel) */
+		public InventoryHandling inventoryHandling = InventoryHandling.ChangeCursor;
+		/** The "Use" in the syntax "Use item on Hotspot" */
+		public HotspotPrefix hotspotPrefix1 = new HotspotPrefix ("Use");
+		/** The "on" in the syntax "Use item on Hotspot" */
+		public HotspotPrefix hotspotPrefix2 = new HotspotPrefix ("on");
+		/** The "Give" in the syntax "Give item to NPC" */
+		public HotspotPrefix hotspotPrefix3 = new HotspotPrefix ("Give");
+		/** The "to" in the syntax "Give item to NPC" */
+		public HotspotPrefix hotspotPrefix4 = new HotspotPrefix ("to");
+
+		/** A List of all CursorIcon instances that represent the various Interaction types */
+		public List<CursorIcon> cursorIcons = new List<CursorIcon>();
+		/** A List of ActionListAsset files that get run when an unhandled Interaction is triggered */
+		public List<ActionListAsset> unhandledCursorInteractions = new List<ActionListAsset>();
+		/** If True, the Hotspot clicked on to initiate unhandledCursorInteractions will be sent as a parameter to the ActionListAsset */
+		public bool passUnhandledHotspotAsParameter;
+
+		/** What to display when hovering over a Hotspot that has both a Use and Examine Interaction (DisplayUseIcon, DisplayBothSideBySide) */
+		public LookUseCursorAction lookUseCursorAction = LookUseCursorAction.DisplayBothSideBySide;
+		/** The ID number of the CursorIcon (in cursorIcons) that represents the "Examine" Interaction */
+		public int lookCursor_ID = 0;
+
+		#if UNITY_EDITOR
+			#if UNITY_EDITOR_WIN
+			public bool forceCursorInEditor = true;
+			#else
+			public bool forceCursorInEditor;
+			#endif
+		#endif
+
+		private SettingsManager settingsManager;
 		
-		EditorGUILayout.BeginVertical ("Button");
+		
+		#if UNITY_EDITOR
+		
+		private static GUIContent
+			insertContent = new GUIContent("+", "Insert variable"),
+			deleteContent = new GUIContent("-", "Delete variable");
+
+		private static GUILayoutOption
+			buttonWidth = GUILayout.MaxWidth (20f);
+
+
+		/**
+		 * Shows the GUI.
+		 */
+		public void ShowGUI ()
+		{
+			settingsManager = AdvGame.GetReferences().settingsManager;
+
+			EditorGUILayout.BeginVertical ("Button");
+			EditorGUILayout.LabelField ("Global cursor settings", EditorStyles.boldLabel);
+			cursorRendering = (CursorRendering) EditorGUILayout.EnumPopup ("Cursor rendering:", cursorRendering);
+			forceCursorInEditor = EditorGUILayout.ToggleLeft ("Always show system cursor in Editor?", forceCursorInEditor);
+			EditorGUILayout.EndVertical ();
+			EditorGUILayout.Space ();
+			
+			EditorGUILayout.BeginVertical ("Button");
 			EditorGUILayout.LabelField ("Main cursor", EditorStyles.boldLabel);
 			cursorDisplay = (CursorDisplay) EditorGUILayout.EnumPopup ("Display cursor:", cursorDisplay);
-			allowMainCursor = EditorGUILayout.Toggle ("Replace mouse cursor?", allowMainCursor);
-			if (allowMainCursor || (settingsManager && settingsManager.inputMethod == InputMethod.KeyboardOrController))
+			if (cursorDisplay != CursorDisplay.Never)
 			{
-				pointerTexture = (Texture2D) EditorGUILayout.ObjectField ("Main cursor texture:", pointerTexture, typeof (Texture2D), false);
-				normalCursorSize = EditorGUILayout.FloatField ("Main cursor size:", normalCursorSize);
+				allowMainCursor = EditorGUILayout.Toggle ("Replace mouse cursor?", allowMainCursor);
+				if (allowMainCursor || (settingsManager && settingsManager.inputMethod == InputMethod.KeyboardOrController))
+				{
+					IconBaseGUI ("Main cursor:", pointerIcon);
+				}
 			}
-		EditorGUILayout.EndVertical ();
-		
-		EditorGUILayout.Space ();
-
-		EditorGUILayout.BeginVertical ("Button");
-			EditorGUILayout.LabelField ("Hotspot settings", EditorStyles.boldLabel);
-			addHotspotPrefix = EditorGUILayout.Toggle ("Prefix cursor labels?", addHotspotPrefix);
-			if (settingsManager && settingsManager.interactionMethod == AC_InteractionMethod.ChooseHotspotThenInteraction)
+			EditorGUILayout.EndVertical ();
+			
+			EditorGUILayout.Space ();
+			
+			EditorGUILayout.BeginVertical ("Button");
+			EditorGUILayout.LabelField ("Walk settings", EditorStyles.boldLabel);
+			if (allowMainCursor)
 			{
-				mouseOverTexture = (Texture2D) EditorGUILayout.ObjectField ("Mouseover cursor texture:", mouseOverTexture, typeof (Texture2D), false);
-				mouseOverCursorSize = EditorGUILayout.FloatField ("Main cursor size:", mouseOverCursorSize);
+				allowWalkCursor = EditorGUILayout.Toggle ("Provide walk cursor?", allowWalkCursor);
+				if (allowWalkCursor)
+				{
+					if (KickStarter.settingsManager.interactionMethod == AC_InteractionMethod.ChooseInteractionThenHotspot)
+					{
+						EditorGUILayout.LabelField ("Input button:", "Icon_Walk");
+					}
+					IconBaseGUI ("Walk cursor:", walkIcon);
+					onlyWalkWhenOverNavMesh = EditorGUILayout.ToggleLeft ("Only show 'Walk' Cursor when over NavMesh?", onlyWalkWhenOverNavMesh);
+				}
 			}
-		EditorGUILayout.EndVertical ();
-
-		EditorGUILayout.Space ();
-		
-		EditorGUILayout.BeginVertical ("Button");
-			EditorGUILayout.LabelField ("Inventory cursor", EditorStyles.boldLabel);
-			if (settingsManager && settingsManager.interactionMethod != AC_InteractionMethod.ChooseHotspotThenInteraction)
+			addWalkPrefix = EditorGUILayout.Toggle ("Prefix cursor labels?", addWalkPrefix);
+			if (addWalkPrefix)
 			{
+				walkPrefix.label = EditorGUILayout.TextField ("Walk prefix:", walkPrefix.label);
+			}
+			EditorGUILayout.EndVertical ();
+			
+			EditorGUILayout.Space ();
+
+			EditorGUILayout.BeginVertical ("Button");
+				EditorGUILayout.LabelField ("Hotspot settings", EditorStyles.boldLabel);
+				addHotspotPrefix = EditorGUILayout.Toggle ("Prefix cursor labels?", addHotspotPrefix);
+				IconBaseGUI ("Mouse-over cursor:", mouseOverIcon);
+			EditorGUILayout.EndVertical ();
+
+			EditorGUILayout.Space ();
+			
+			EditorGUILayout.BeginVertical ("Button");
+				EditorGUILayout.LabelField ("Inventory cursor", EditorStyles.boldLabel);
 				inventoryHandling = (InventoryHandling) EditorGUILayout.EnumPopup ("When inventory selected:", inventoryHandling);
-				if (inventoryHandling == InventoryHandling.ChangeCursor || inventoryHandling == InventoryHandling.ChangeCursorAndHotspotLabel)
+				if (inventoryHandling != InventoryHandling.ChangeCursor)
+				{
+					onlyShowInventoryLabelOverHotspots = EditorGUILayout.ToggleLeft ("Only show label when over Hotspots and Inventory?", onlyShowInventoryLabelOverHotspots);
+				}
+				if (inventoryHandling != InventoryHandling.ChangeHotspotLabel)
 				{
 					inventoryCursorSize = EditorGUILayout.FloatField ("Inventory cursor size:", inventoryCursorSize);
 				}
-			}
-			EditorGUILayout.BeginHorizontal ();
-				EditorGUILayout.LabelField ("Syntax:", GUILayout.Width (60f));
-				hotspotPrefix1.label = EditorGUILayout.TextField (hotspotPrefix1.label, GUILayout.MaxWidth (80f));
-				EditorGUILayout.LabelField ("(item)", GUILayout.MaxWidth (40f));
-
-				hotspotPrefix2.label = EditorGUILayout.TextField (hotspotPrefix2.label, GUILayout.MaxWidth (80f));
-				EditorGUILayout.LabelField ("(hotspot)", GUILayout.MaxWidth (55f));
-			EditorGUILayout.EndHorizontal ();
-		EditorGUILayout.EndVertical ();
-		
-		EditorGUILayout.Space ();
-		
-		EditorGUILayout.BeginVertical ("Button");
-			EditorGUILayout.LabelField ("Interaction icons", EditorStyles.boldLabel);
+				EditorGUILayout.BeginHorizontal ();
+					EditorGUILayout.LabelField ("Use syntax:", GUILayout.Width (100f));
+					hotspotPrefix1.label = EditorGUILayout.TextField (hotspotPrefix1.label, GUILayout.MaxWidth (80f));
+					EditorGUILayout.LabelField ("(item)", GUILayout.MaxWidth (40f));
+					hotspotPrefix2.label = EditorGUILayout.TextField (hotspotPrefix2.label, GUILayout.MaxWidth (80f));
+					EditorGUILayout.LabelField ("(hotspot)", GUILayout.MaxWidth (55f));
+				EditorGUILayout.EndHorizontal ();
+				if (AdvGame.GetReferences ().settingsManager && AdvGame.GetReferences ().settingsManager.CanGiveItems ())
+				{
+					EditorGUILayout.BeginHorizontal ();
+						EditorGUILayout.LabelField ("Give syntax:", GUILayout.Width (100f));
+						hotspotPrefix3.label = EditorGUILayout.TextField (hotspotPrefix3.label, GUILayout.MaxWidth (80f));
+						EditorGUILayout.LabelField ("(item)", GUILayout.MaxWidth (40f));
+						hotspotPrefix4.label = EditorGUILayout.TextField (hotspotPrefix4.label, GUILayout.MaxWidth (80f));
+						EditorGUILayout.LabelField ("(hotspot)", GUILayout.MaxWidth (55f));
+					EditorGUILayout.EndHorizontal ();
+				}
+			EditorGUILayout.EndVertical ();
 			
-			if (settingsManager == null || settingsManager.interactionMethod != AC_InteractionMethod.ChooseHotspotThenInteraction)
-			{
-				allowInteractionCursor = EditorGUILayout.BeginToggleGroup ("Change for interactions?", allowInteractionCursor);
-					iconCursorSize = EditorGUILayout.FloatField ("Interaction icon size:", iconCursorSize);
+			EditorGUILayout.Space ();
+			
+			EditorGUILayout.BeginVertical ("Button");
+				EditorGUILayout.LabelField ("Interaction icons", EditorStyles.boldLabel);
+				
+				if (settingsManager == null || settingsManager.interactionMethod != AC_InteractionMethod.ChooseHotspotThenInteraction)
+				{
+					allowInteractionCursor = EditorGUILayout.ToggleLeft ("Change cursor based on Interaction?", allowInteractionCursor);
+					if (allowInteractionCursor && (settingsManager == null || settingsManager.interactionMethod == AC_InteractionMethod.ContextSensitive))
+					{
+						allowInteractionCursorForInventory = EditorGUILayout.ToggleLeft ("Change when over Inventory items too?", allowInteractionCursorForInventory);
+					}
 					if (settingsManager && settingsManager.interactionMethod == AC_InteractionMethod.ChooseInteractionThenHotspot)
 					{
-						cycleCursors = EditorGUILayout.Toggle ("Cycle with right click?", cycleCursors);
+						cycleCursors = EditorGUILayout.ToggleLeft ("Cycle Interactions with right-click?", cycleCursors);
 					}
-				EditorGUILayout.EndToggleGroup ();
-			}
-			
-			IconsGUI ();
-		
-			EditorGUILayout.Space ();
-		
-			if (settingsManager == null || settingsManager.interactionMethod == AC_InteractionMethod.ContextSensitive)
-			{
-				LookIconGUI ();
-			}
-			
-		EditorGUILayout.EndVertical ();
-		
-		if (GUI.changed)
-		{
-			EditorUtility.SetDirty (this);
-		}
-	}
-	
-	
-	private void IconsGUI ()
-	{
-		// List icons
-		foreach (CursorIcon _cursorIcon in cursorIcons)
-		{
-			GUILayout.Box("", GUILayout.ExpandWidth(true), GUILayout.Height(1));
-			EditorGUILayout.BeginHorizontal ();
-				EditorGUILayout.LabelField ("Label:", labelWidth);
-				_cursorIcon.label = EditorGUILayout.TextField (_cursorIcon.label, GUILayout.Width (80));
-				EditorGUILayout.LabelField ("Texture:", labelWidth);
-				_cursorIcon.texture = (Texture2D) EditorGUILayout.ObjectField (_cursorIcon.texture, typeof (Texture2D), false, GUILayout.Width (70), GUILayout.Height (70));
+				}
 				
+				IconsGUI ();
+			
+				EditorGUILayout.Space ();
+			
+				if (settingsManager == null || settingsManager.interactionMethod == AC_InteractionMethod.ContextSensitive)
+				{
+					LookIconGUI ();
+				}
+			EditorGUILayout.EndVertical ();
+
+			EditorGUILayout.Space ();
+
+			EditorGUILayout.BeginVertical ("Button");
+				IconBaseGUI ("Cutscene cursor", waitIcon);
+			EditorGUILayout.EndVertical ();
+
+			if (GUI.changed)
+			{
+				EditorUtility.SetDirty (this);
+			}
+		}
+		
+		
+		private void IconsGUI ()
+		{
+			// Make sure unhandledCursorInteractions is the same length as cursorIcons
+			while (unhandledCursorInteractions.Count < cursorIcons.Count)
+			{
+				unhandledCursorInteractions.Add (null);
+			}
+			while (unhandledCursorInteractions.Count > cursorIcons.Count)
+			{
+				unhandledCursorInteractions.RemoveAt (unhandledCursorInteractions.Count + 1);
+			}
+
+			// List icons
+			foreach (CursorIcon _cursorIcon in cursorIcons)
+			{
+				int i = cursorIcons.IndexOf (_cursorIcon);
+				GUILayout.Box("", GUILayout.ExpandWidth(true), GUILayout.Height(1));
+
+				EditorGUILayout.BeginHorizontal ();
+				EditorGUILayout.LabelField ("Icon ID:", GUILayout.MaxWidth (145));
+				EditorGUILayout.LabelField (_cursorIcon.id.ToString (), GUILayout.MaxWidth (120));
+
 				if (GUILayout.Button (insertContent, EditorStyles.miniButtonLeft, buttonWidth))
 				{
 					Undo.RecordObject (this, "Add icon");
-					int position = cursorIcons.IndexOf (_cursorIcon) + 1;
-					cursorIcons.Insert (position, new CursorIcon (GetIDArray ()));
+					cursorIcons.Insert (i+1, new CursorIcon (GetIDArray ()));
+					unhandledCursorInteractions.Insert (i+1, null);
 					break;
 				}
 				if (GUILayout.Button (deleteContent, EditorStyles.miniButtonRight, buttonWidth))
 				{
 					Undo.RecordObject (this, "Delete icon: " + _cursorIcon.label);
 					cursorIcons.Remove (_cursorIcon);
+					unhandledCursorInteractions.RemoveAt (i);
 					break;
 				}
-		
-			EditorGUILayout.EndHorizontal ();
-		}
+				EditorGUILayout.EndHorizontal ();
 
-		if (GUILayout.Button("Create new icon"))
-		{
-			Undo.RecordObject (this, "Add icon");
-			cursorIcons.Add (new CursorIcon (GetIDArray ()));
-		}
-	}
-	
-	
-	private void LookIconGUI ()
-	{
-		if (cursorIcons.Count > 0)
-		{
-			lookCursor_int = GetIntFromID (lookCursor_ID);
-			lookCursor_int = EditorGUILayout.Popup ("Examine icon:", lookCursor_int, GetLabelsArray (lookCursor_int));
-			lookCursor_ID = cursorIcons[lookCursor_int].id;
+				_cursorIcon.label = EditorGUILayout.TextField ("Label:", _cursorIcon.label);
+				if (KickStarter.settingsManager.interactionMethod == AC_InteractionMethod.ChooseInteractionThenHotspot)
+				{
+					EditorGUILayout.LabelField ("Input button:", _cursorIcon.GetButtonName ());
+				}
+				_cursorIcon.ShowGUI (true, cursorRendering);
 
-			EditorGUILayout.LabelField ("When Use and Examine interactions are both available:");
-			lookUseCursorAction = (LookUseCursorAction) EditorGUILayout.EnumPopup (" ", lookUseCursorAction);
-		}
-	}
-	
-	#endif
-	
-	
-	public string[] GetLabelsArray (int requestedInt)
-	{
-		// Create a string List of the field's names (for the PopUp box)
-		List<string> iconLabels = new List<string>();
-		
-		foreach (CursorIcon cursorIcon in cursorIcons)
-		{
-			iconLabels.Add (cursorIcon.label);
-		}
-	
-		return (iconLabels.ToArray());
-	}
-	
-	
-	public string GetLabelFromID (int _ID)
-	{
-		foreach (CursorIcon cursorIcon in cursorIcons)
-		{
-			if (cursorIcon.id == _ID)
+				if (settingsManager && settingsManager.interactionMethod == AC_InteractionMethod.ChooseInteractionThenHotspot)
+				{
+					unhandledCursorInteractions[i] = ActionListAssetMenu.AssetGUI ("Unhandled interaction", unhandledCursorInteractions[i]);
+					_cursorIcon.dontCycle = EditorGUILayout.Toggle ("Leave out of Cursor cycle?", _cursorIcon.dontCycle);
+				}
+			}
+
+			if (GUILayout.Button("Create new icon"))
 			{
-				if (Options.GetLanguage () > 0)
-				{
-					return (SpeechManager.GetTranslation (cursorIcon.lineID, Options.GetLanguage ()) + " ");
-				}
-				else
-				{
-					return (cursorIcon.label + " ");
-				}
+				Undo.RecordObject (this, "Add icon");
+				cursorIcons.Add (new CursorIcon (GetIDArray ()));
+			}
+
+			passUnhandledHotspotAsParameter = EditorGUILayout.ToggleLeft ("Pass Hotspot as GameObject parameter?", passUnhandledHotspotAsParameter);
+			if (passUnhandledHotspotAsParameter)
+			{
+				EditorGUILayout.HelpBox ("The Hotspot will be set as the Unhandled interaction's first parameter, which must be set to type 'GameObject'.", MessageType.Info);
 			}
 		}
 		
-		return ("");
-	}
-	
-	
-	public Texture2D GetTextureFromID (int _ID)
-	{
-		foreach (CursorIcon cursorIcon in cursorIcons)
+		
+		private void LookIconGUI ()
 		{
-			if (cursorIcon.id == _ID)
+			if (cursorIcons.Count > 0)
 			{
-				return (cursorIcon.texture);
+				int lookCursor_int = GetIntFromID (lookCursor_ID);
+				lookCursor_int = EditorGUILayout.Popup ("Examine icon:", lookCursor_int, GetLabelsArray ());
+				lookCursor_ID = cursorIcons[lookCursor_int].id;
+
+				if (cursorRendering == CursorRendering.Software)
+				{
+					EditorGUILayout.LabelField ("When Use and Examine interactions are both available:");
+					lookUseCursorAction = (LookUseCursorAction) EditorGUILayout.EnumPopup (" ", lookUseCursorAction);
+				}
+
+				EditorGUILayout.BeginHorizontal ();
+				EditorGUILayout.LabelField ("Left-click to examine when no use interaction exists?", GUILayout.Width (300f));
+				leftClickExamine = EditorGUILayout.Toggle (leftClickExamine);
+				EditorGUILayout.EndHorizontal ();
 			}
 		}
-		
-		return (null);
-	}
-	
-	
-	public int GetIntFromID (int _ID)
-	{
-		int i = 0;
-		int requestedInt = -1;
-		
-		foreach (CursorIcon cursorIcon in cursorIcons)
+
+
+		private void IconBaseGUI (string fieldLabel, CursorIconBase icon)
 		{
-			if (cursorIcon.id == _ID)
+			EditorGUILayout.LabelField (fieldLabel, EditorStyles.boldLabel);
+			icon.ShowGUI (true, cursorRendering);
+			GUILayout.Box("", GUILayout.ExpandWidth(true), GUILayout.Height(1));
+		}
+
+		#endif
+		
+
+		/**
+		 * <summary>Gets an array of the CursorIcon labels defined in cursorIcons.</summary>
+		 * <param name = "includeNone">If True, then the array will begin with a (none) option.</param>
+		 * <returns>An array of the CursorIcon labels defined in cursorIcons</returns>
+		 */
+		public string[] GetLabelsArray (bool includeNone = false)
+		{
+			List<string> iconLabels = new List<string>();
+			if (includeNone)
 			{
-				requestedInt = i;
+				iconLabels.Add ("(None)");
+			}
+			foreach (CursorIcon cursorIcon in cursorIcons)
+			{
+				iconLabels.Add (cursorIcon.label);
+			}
+			return (iconLabels.ToArray());
+		}
+		
+
+		/**
+		 * <summary>Gets a label of the CursorIcon defined in cursorIcons.</summary>
+		 * <param name = "_ID">The ID number of the CursorIcon to find</param>
+		 * <param name = "languageNumber">The index number of the language to get the label in</param>
+		 * <returns>The label of the CursorIcon</returns>
+		 */
+		public string GetLabelFromID (int _ID, int languageNumber)
+		{
+			foreach (CursorIcon cursorIcon in cursorIcons)
+			{
+				if (cursorIcon.id == _ID)
+				{
+					if (Application.isPlaying)
+					{
+						return (KickStarter.runtimeLanguages.GetTranslation (cursorIcon.label, cursorIcon.lineID, languageNumber) + " ");
+					}
+					return cursorIcon.label;
+				}
 			}
 			
-			i++;
+			return ("");
 		}
 		
-		if (requestedInt == -1)
+
+		/**
+		 * <summary>Gets a CursorIcon defined in cursorIcons.</summary>
+		 * <param name = "_ID">The ID number of the CursorIcon to find</param>
+		 * <returns>The CursorIcon</returns>
+		 */
+		public CursorIcon GetCursorIconFromID (int _ID)
 		{
-			// Wasn't found (icon was deleted?), so revert to zero
-			requestedInt = 0;
+			foreach (CursorIcon cursorIcon in cursorIcons)
+			{
+				if (cursorIcon.id == _ID)
+				{
+					return (cursorIcon);
+				}
+			}
+			
+			return (null);
 		}
-	
-		return (requestedInt);
-	}
-	
-	
-	private int[] GetIDArray ()
-	{
-		// Returns a list of id's in the list
 		
-		List<int> idArray = new List<int>();
-		
-		foreach (CursorIcon cursorIcon in cursorIcons)
+
+		/**
+		 * <summary>Gets the index number (in cursorIcons) of a CursorIcon.</summary>
+		 * <param name = "_ID">The ID number of the CursorIcon to find</param>
+		 * <returns>The index number (in cursorIcons) of the CursorIcon</returns>
+		 */
+		public int GetIntFromID (int _ID)
 		{
-			idArray.Add (cursorIcon.id);
+			int i = 0;
+			int requestedInt = -1;
+			
+			foreach (CursorIcon cursorIcon in cursorIcons)
+			{
+				if (cursorIcon.id == _ID)
+				{
+					requestedInt = i;
+				}
+				
+				i++;
+			}
+			
+			if (requestedInt == -1)
+			{
+				// Wasn't found (icon was deleted?), so revert to zero
+				requestedInt = 0;
+			}
+		
+			return (requestedInt);
+		}
+
+
+		/**
+		 * <summary>Gets the ActionListAsset that is used as a CursorIcon's unhandled event.</summary>
+		 * <param name = "_ID">The ID number of the CursorIcon to find</param>
+		 * <returns>The ActionListAsset that is used as the CursorIcon's unhandled event</returns>
+		 */
+		public ActionListAsset GetUnhandledInteraction (int _ID)
+		{
+			foreach (CursorIcon cursorIcon in cursorIcons)
+			{
+				if (cursorIcon.id == _ID)
+				{
+					int i = cursorIcons.IndexOf (cursorIcon);
+					if (unhandledCursorInteractions.Count > i)
+					{
+						return unhandledCursorInteractions [i];
+					}
+					return null;
+				}
+			}
+			return null;
 		}
 		
-		idArray.Sort ();
-		return idArray.ToArray ();
+		
+		private int[] GetIDArray ()
+		{
+			// Returns a list of id's in the list
+			
+			List<int> idArray = new List<int>();
+			
+			foreach (CursorIcon cursorIcon in cursorIcons)
+			{
+				idArray.Add (cursorIcon.id);
+			}
+			
+			idArray.Sort ();
+			return idArray.ToArray ();
+		}
+
 	}
-	
+
 }
